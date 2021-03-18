@@ -36,6 +36,8 @@ log = logging.getLogger(__name__)
 
 PATH = "/profiles/nl/handler/"
 musicfile = PATH + "music"
+
+duckduckgo_url = 'https://api.duckduckgo.com/?'
 domticz_url = "http://192.168.0.3:8080/json.htm?"
 kodi_url = "http://192.168.0.5:8080/jsonrpc"
 
@@ -77,8 +79,9 @@ def speech(text):
     log.debug(str(jsonevent["speech"]))
 
 
-def do_get(url):
-    log.debug("do_get Url:"+url)
+def get_domoticz(command):
+    url = domticz_url+command
+    log.debug("Url:"+url)
     try:
         res = requests.get(url)
         if res.status_code != 200:
@@ -91,12 +94,43 @@ def do_get(url):
         return None
 
     log.debug(str(res.text))
-    json_result = json.loads(res.text)
-    log.debug(str(json_result))
-    if "result" in json_result:
-        return(json_result["result"][0])
+    res_json = json.loads(res.text)
+
+    if "result" in res_json:
+        return(res_json["result"][0])
 
     return(None)
+
+
+def get_duckduckgo(artist="", album="", genre=""):
+    search = ""
+    if genre != "":
+        search = "genre "+genre
+    else:
+        if album != "":
+            search = "album %s %s" % (album, artist)
+        else:
+            search = artist
+
+    params = { 'q': search, 'kad': 'nl_NL', 'kl': 'nl-nl', 'format': 'json' }
+
+    log.debug("duckduckgo("+search+")")
+    try:
+        res = requests.get(duckduckgo_url, params=params)
+        if res.status_code != 200:
+            log.info("Url:["+duckduckgo_url+"]\nResult:" + res.status_code
+                     + ", text:"+res.text)
+    except ConnectionError:
+        log.error("ConnectionError for url "+duckduckgo_url)
+
+    log.debug(str(res.text))
+    res_json = json.loads(res.text)
+
+    if res_json["AbstractText"] is None or res_json["AbstractText"] == "":
+        return("Geen informatie over %s gevonden" % (search))
+    else:
+        return(res_json["AbstractText"])
+
 
 # ================  Intent handlers =================================
 
@@ -105,19 +139,19 @@ def domoDimmer(name, state):
     log.debug("domoDimmer("+name+","+state+")")
     command = "type=command&param=switchlight&idx=%s&switchcmd=%s"\
         % (lampen[name], states[state])
-    do_get(domticz_url + command)
+    get_domoticz(command)
     # to set level : &switchcmd=Set%20Level&level=6
 
 
 def domoSwitch(name, state):
     command = "type=command&param=switchlight&idx=%s&switchcmd=%s"\
         % (lampen[name], states[state])
-    do_get(domticz_url + command)
+    get_domoticz(command)
 
 
 def domoScene(idx):
     command = "type=command&param=switchscene&idx=%s&switchcmd=On" % (idx)
-    do_get(domticz_url + command)
+    get_domoticz(command)
 
 
 def kodiplay(albums):
@@ -138,7 +172,8 @@ def kodiplay(albums):
 
 
 def play_artist_album(artist="", album="", genre=""):
-    log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)" % (artist, album, genre))
+    log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)"
+              % (artist, album, genre))
     # albums = get_albums(artist, album)
     music = Music(kodi, musicfile)
     albums = music.search_albuminfo(artist=artist, album=album, genre=genre)
@@ -164,7 +199,6 @@ def play_by_id(albumid):
         speech("ik kan geen album nummer "+str(albumid)+" vinden")
     else:
         kodiplay(albums)
-
 
 
 # =============================================================================
@@ -201,7 +235,7 @@ def doTimer():
 
 
 def doGetTemperature():
-    res = do_get(domticz_url + "type=devices&rid="+temperatuur_idx)
+    res = get_domoticz("type=devices&rid="+temperatuur_idx)
 
     if res is not None:   # json result is Ok
         aantal_graden = str(res["Temp"])
@@ -211,7 +245,7 @@ def doGetTemperature():
 
 
 def doGetWind():
-    res = do_get(domticz_url + "type=devices&rid="+wind_idx)
+    res = get_domoticz("type=devices&rid="+wind_idx)
 
     if res is not None:   # json result is Ok
         snelheidstr = res["Speed"]
@@ -224,7 +258,7 @@ def doGetWind():
 
 
 def doGetElecticityUsage():
-    res = do_get(domticz_url + "type=devices&rid="+electricity_idx)
+    res = get_domoticz("type=devices&rid="+electricity_idx)
 
     if res is not None:   # json result is Ok
         verbruikstr = res["Data"]
@@ -324,6 +358,23 @@ def doMuziekWhatsPlaying():
     else:
         speech("Ik weet het niet, sorry")
 
+
+def doDuckDuckGo():
+    if "artist" in jsonevent["slots"]:
+        artist = jsonevent["slots"]["artist"]
+    else:
+        artist = ""
+
+    if "album" in jsonevent["slots"]:
+        album = jsonevent["slots"]["album"]
+    else:
+        album = ""
+    if "genre" in jsonevent["slots"]:
+        genre = jsonevent["slots"]["genre"]
+    else:
+        genre = ""
+    answer = get_duckduckgo(artist, album, genre)
+    speech(answer)
 
 
 # ============================================================================
