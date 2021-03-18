@@ -46,6 +46,14 @@ class Kodi:
         log.debug("Post Result:"+res.text)
         return(res.json())
 
+#{"jsonrpc": "2.0", "method": "Player.GetItem", "params": { "properties": ["album", "artist", "genre", "title"], "playerid": 0 }, "id": "AudioGetItem"}
+    def get_whats_playing(self):
+        log.debug("get_all_albums")
+        data = '{"jsonrpc":"2.0","method":"Player.GetItem","params":'\
+                + '{"properties":["album", "artist", "genre", "title"]'\
+                + ', "playerid": 0},"id":"item"}'
+        return self.do_post(data)
+
     def get_all_albums(self):
         log.debug("get_all_albums")
         data = '{"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums"'\

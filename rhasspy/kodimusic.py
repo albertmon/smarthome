@@ -37,20 +37,37 @@ class Music:
         self.kodi = kodi
         self.musicfile = musicfile
 
-    def search_albuminfo(self, artist_name, album_name):
-        artist_name = artist_name.lower()
-        album_name = album_name.lower()
+    def get_albuminfo(self, albumid):
+        with open(self.musicfile, "r") as music_file:
+            music_json = json.load(music_file)
+        log.debug("get_albuminfo: albumid=%s, musicfile=%s"
+                 % (albumid, self.musicfile))
+
+        album_info_list = []
+        for album_info in music_json["albums"]:
+            if album_info["id"] == str(albumid):
+                log.debug("album_info (%s) matcht (%s)" % ( str(album_info) , str(albumid)))
+                album_info_list.append(album_info)
+                break
+        log.debug("Gevonden: %s" % str(album_info_list))
+        return album_info_list
+
+    def search_albuminfo(self, artist="", album="", genre=""):
+        artist_name = artist.lower()
+        album_name = album.lower()
 
         with open(self.musicfile, "r") as music_file:
             music_json = json.load(music_file)
-        log.debug("kodiGetAlbums:artist=%s, album=%s, musicfile=%s"
-                 % (artist_name, album_name, self.musicfile))
+        log.debug("kodiGetAlbums:artist=[%s], album=[%s], genre=[%s], musicfile=[%s]"
+                 % (artist_name, album_name, genre, self.musicfile))
 
         album_info_list = [album_info for album_info in music_json["albums"]
-                           if (album_info["artistsearch"] == artist_name
-                               or artist_name == "")
-                           and (album_info["albumsearch"] == album_name
-                                or album_name == "")
+                           if (artist_name == ""
+                               or album_info["artistsearch"] == artist_name)
+                           and (album_name == ""
+                                or album_info["albumsearch"] == album_name)
+                           and (genre == ""
+                                or genre in album_info["genre"])
                            ]
         log.debug("Gevonden: %s" % str(album_info_list))
         return album_info_list
@@ -115,7 +132,7 @@ class Music:
                          + '"genre":"%s","artistsearch":"%s","albumsearch":"%s"}\n'\
                          % (genre, artistsearch, albumsearch)
             log.debug(line)
-            fmusic.write(line.encode("utf-8"))
+            fmusic.write(line)
             separator = ','
 
         fmusic.write(']}')
@@ -151,9 +168,24 @@ if __name__ == '__main__':
     music.refresh_album_info("")  # create files in current directory
 
     # test
+    albumlist = music.get_albuminfo("4")
+    log.info("album[4]:"+str(albumlist))
+    print("album[4]:"+str(albumlist))
+    print("------------------------------------------")
     albumlist = music.search_albuminfo("pink floyd", "echoes")
     log.info("pink floyd, echoes:"+str(albumlist))
+    print("pink floyd, echoes:"+str(albumlist))
+    print("------------------------------------------")
     albumlist = music.search_albuminfo("pink floyd", "")
     log.info("only pink floyd:"+str(albumlist))
+    print("only pink floyd:"+str(albumlist))
+    print("------------------------------------------")
     albumlist = music.search_albuminfo("", "echoes")
     log.info("only echoes:"+str(albumlist))
+    print("only echoes:"+str(albumlist))
+    print("------------------------------------------")
+    albumlist = music.search_albuminfo(genre="Jaz")
+    log.info("Jazz:"+str(albumlist))
+    print("Jazz:"+str(albumlist))
+    print("------------------------------------------")
+

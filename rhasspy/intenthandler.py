@@ -120,34 +120,52 @@ def domoScene(idx):
     do_get(domticz_url + command)
 
 
-def play(artist, album):
-    log.debug("play:(artist=%s, album=%s)" % (artist, album))
+def kodiplay(albums):
+    log.debug("kodiplay:gotAlbums:%s" % (str(albums)))
+    kodi.clear_playlist()
+    log.debug("albums[0]=%s" % (str(albums[0])))
+    for album in albums:
+        log.debug("album=%s" % (str(album)))
+
+        if len(albums) == 1:
+            speech("Ik ga het album %s van %s afspelen"
+                   % (album["album"], album["artistsearch"]))
+
+        log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
+                  (album["id"], album["album"], album["artistsearch"]))
+        kodi.add_album_to_playlist(album["id"])
+    kodi.restart_play()
+
+
+def play_artist_album(artist="", album="", genre=""):
+    log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)" % (artist, album, genre))
     # albums = get_albums(artist, album)
     music = Music(kodi, musicfile)
-    albums = music.search_albuminfo(artist, album)
-    log.debug("play:gotAlbums:%s" % (str(albums)))
+    albums = music.search_albuminfo(artist=artist, album=album, genre=genre)
+    if genre is not None:
+        genretekst = " in het genre " + genre
+    else:
+        genretekst = ""
     if len(albums) == 0:
-        log.debug("play:geen album gevonden")
+        log.debug("kodiplay:geen album gevonden")
         if artist == "":
             artist = "een wilekeurige artiest"
-        if album == "":
-            album = "een willekeurig album"
-        speech("ik kan geen album "+album+" van "+artist+" vinden")
+        speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
     else:
-        kodi.clear_playlist()
-        speech("ik ga alle albums van %s afspelen" % (artist))
-        log.debug("albums[0]=%s" % (str(albums[0])))
-        for album in albums:
-            log.debug("album=%s" % (str(album)))
+        speech("ik ga alle albums van %s afspelen%s" % (artist, genretekst))
+        kodiplay(albums)
 
-            if len(albums) == 1:
-                speech("Ik ga het album %s van %s afspelen"
-                       % (album["album"], album["artistsearch"]))
 
-            log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                      (album["id"], album["album"], album["artistsearch"]))
-            kodi.add_album_to_playlist(album["id"])
-        kodi.restart_play()
+def play_by_id(albumid):
+    music = Music(kodi, musicfile)
+    albums = music.get_albuminfo(albumid)
+    if len(albums) == 0:
+        log.debug("kodiplay:geen album gevonden")
+        speech("ik kan geen album nummer "+str(albumid)+" vinden")
+    else:
+        kodiplay(albums)
+
+
 
 # =============================================================================
 
@@ -244,23 +262,36 @@ def doChangeLightState():
     domoSwitch(name, state)
     speech("Ik heb de %s %s gedaan" % (name, state))
 
-
 def doMuziekVanArtist():
     artist = jsonevent["slots"]["artist"]
-    album = ""
-    play(artist, album)
+    play_artist_album(artist=artist)
 
 
 def doMuziekVanAlbum():
-    artist = ""
     album = jsonevent["slots"]["album"]
-    play(artist, album)
+    play_artist_album(album=album)
 
 
 def doMuziekVanAlbumArtist():
     artist = jsonevent["slots"]["artist"]
     album = jsonevent["slots"]["album"]
-    play(artist, album)
+    play_artist_album(artist=artist, album=album)
+
+
+def doMuziekVanGenre():
+    genre = jsonevent["slots"]["genre"]
+    play_artist_album(genre=genre)
+
+
+def doMuziekAlbumid():
+    # speel album nummer  (0..500){albumid}
+    albumid = jsonevent["slots"]["albumid"]
+    play_by_id(albumid)
+
+
+def doMuziekAlbumlijstVanArtist():
+    # welke albums (zijn er|hebben we) van ($artists){artist}
+    speech("Ik kan nog geen lijst van albums geven")
 
 
 def doMuziekPauseResume():
@@ -278,6 +309,21 @@ def doMuziekPrevious():
 
 def doMuziekNext():
     kodi.next_track()
+
+def doMuziekWhatsPlaying():
+    answer = kodi.get_whats_playing()
+    log.debug(str(answer))
+    if answer['result'] is not None and answer['result']['item'] is not None:
+        item = answer['result']['item']
+        album = item["album"]
+        artist = item["artist"]
+        title = item["title"]
+        # genre = item["genre"]
+        speech("Dit is het nummer, %s, van het album, %s, van, %s" 
+               % (title, album, artist))
+    else:
+        speech("Ik weet het niet, sorry")
+
 
 
 # ============================================================================
