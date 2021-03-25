@@ -41,19 +41,10 @@ duckduckgo_url = 'https://api.duckduckgo.com/?'
 domticz_url = "http://192.168.0.3:8080/json.htm?"
 kodi_url = "http://192.168.0.5:8080/jsonrpc"
 
-# map names to domoticz idx
-lampen = {"boekenkastlamp": "1",
-          "tvlamp": "3",
-          "oranje lamp": "2",
-          "lamp bij zijraam": "4",
-          "leeslamp": "4",
-          "bureaulamp": "11",
-          "tafellicht": "5"}
 temperatuur_idx = "19"
 wind_idx = "20"
 electricity_idx = "6"
 
-states = {"aan": "On", "uit": "Off"}
 windnaam = {"N": "noord",
             "NNE": "noord noord oost",
             "NE": "noord oost",
@@ -79,6 +70,28 @@ def speech(text):
     log.debug(str(jsonevent["speech"]))
 
 
+def get_slot_value(slot_name,default=""):
+    if slot_name in jsonevent["slots"]:
+        return jsonevent["slots"][slot_name]
+    return default
+
+def get_raw_value_for(entity_name):
+    for entity in jsonevent["entities"]:
+        if entity["entity"] == entity_name:
+            return entity["raw_value"]
+    return ""
+
+def get_speech(text_to_speak):
+    is_var = False
+    new_speech = ""
+    for text in text_to_speak.split('.'):
+       if is_var:
+           new_speech = new_speech + get_raw_value_for(text)
+       else:
+           new_speech = new_speech + text
+       is_var = not is_var
+    return new_speech
+
 def get_domoticz(command):
     url = domticz_url+command
     log.debug("Url:"+url)
@@ -101,6 +114,24 @@ def get_domoticz(command):
 
     return(None)
 
+def domo_get_info(idx):
+      # "Level": 80,
+      # "LevelInt": 12,
+      # "MaxDimLevel": 15,
+      # "Name": "Tafellicht",
+
+    command = "type=devices&rid=%d" % (idx)
+    res_json = get_domoticz(command)
+    log.debug("Domotcz result: "+str(res_json))
+    if "MaxDimLevel" in res_json:
+        maxDimLevel = int(res_json["MaxDimLevel"])
+    else:
+        maxDimLevel = 100
+    if "Name" in res_json:
+        name = res_json["Name"]
+    else:
+        name = "unknown"
+    return (maxDimLevel, name)
 
 def get_duckduckgo(artist="", album="", genre=""):
     search = ""
@@ -135,17 +166,24 @@ def get_duckduckgo(artist="", album="", genre=""):
 # ================  Intent handlers =================================
 
 
-def domoDimmer(name, state):
-    log.debug("domoDimmer("+name+","+state+")")
-    command = "type=command&param=switchlight&idx=%s&switchcmd=%s"\
-        % (lampen[name], states[state])
+def domoDimmer(idx, state, level=-1):
+    log.debug("domoDimmer(%d, %s, %d)" % (idx, state, level))
+    if level >= 0:
+        (maxDimLevel,name) = domo_get_info(idx)
+        log.debug("(maxDimLevel=%d,name=%s)"\
+                  % (maxDimLevel,name))
+        level = int((level * maxDimLevel)/100 + 0.5)
+        switchcmd = "Set Level&level=%d" % (level)
+    else:
+        switchcmd = state
+    command = "type=command&param=switchlight&idx=%d&switchcmd=%s"\
+        % (idx, switchcmd)
     get_domoticz(command)
-    # to set level : &switchcmd=Set%20Level&level=6
 
 
-def domoSwitch(name, state):
+def domoSwitch(idx, state):
     command = "type=command&param=switchlight&idx=%s&switchcmd=%s"\
-        % (lampen[name], states[state])
+        % (idx, state)
     get_domoticz(command)
 
 
@@ -214,13 +252,13 @@ def doGetTime():
 
 
 def doTimer():
-    minutes = jsonevent["slots"]["minutes"]
-    seconds = jsonevent["slots"]["seconds"]
+    minutes = get_slot_value("minutes")
+    seconds = get_slot_value("seconds")
     command = PATH + 'timer.sh'
-    secondsToSleep = int(minutes)*60 + int(seconds)
-    log.debug("Call timer: [%s %d]" % (command, secondsToSleep))
+    seconds_to_sleep = minutes*60 + seconds
+    log.debug("Call timer: [%s %d]" % (command, seconds_to_sleep))
 
-    out = subprocess.Popen(['/bin/sh', command, str(secondsToSleep)],
+    out = subprocess.Popen(['/bin/sh', command, str(seconds_to_sleep)],
                            stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT)
     std_out, std_err = out.communicate()
@@ -231,7 +269,25 @@ def doTimer():
         speech("Er is iets misgegaan met de timer. Ik ontving %s"
                % (out))
     else:
-        speech("ik heb een taimer gezet op %d seconden " % (secondsToSleep))
+        log.debug("minutes:%d, seconds:%d" % (minutes,seconds))
+        text_and = " en "
+        if minutes == 0:
+            text_minutes = ""
+            text_and = ""
+        else:
+            if minutes == 1:
+                text_minutes = " 1 minuut"
+            else:
+                text_minutes = str(minutes) + " minuten"
+
+        if seconds == 0:
+            text_seconds = ""
+            text_and = ""
+        else:
+            text_seconds = str(seconds) + " seconden"
+
+        log.debug("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
+        speech("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
 
 
 def doGetTemperature():
@@ -267,6 +323,12 @@ def doGetElecticityUsage():
     else:
         speech("Geen antwoord van domoticz ontvangen")
 
+def doDomo():
+    name = get_slot_value("name")
+    state = get_slot_value("state")
+    idx = get_slot_value("idx")
+    speech = get_slot_value("speech")
+
 
 def doSceneAllesUit():
     domoScene("1")
@@ -283,43 +345,43 @@ def doSceneTVKijken():
     speech("veel plezier")
 
 
-def doTafellichtAanUit():
-    name = "tafellicht"    # jsonevent["slots"]["name"]
-    state = jsonevent["slots"]["state"]
-    domoDimmer(name, state)
-    speech("Ik heb de %s %s gedaan" % (name, state))
+def doDimmer():
+    idx = get_slot_value("idx", default=-1)
+    state = get_slot_value("state",default="Off")
+    level = get_slot_value("level", default=100)
+    domoDimmer(idx, state, level)
 
 
-def doChangeLightState():
-    name = jsonevent["slots"]["name"]
-    state = jsonevent["slots"]["state"]
-    domoSwitch(name, state)
-    speech("Ik heb de %s %s gedaan" % (name, state))
+def doSwitch():
+    idx = get_slot_value("idx")
+    state = get_slot_value("state")
+    domoSwitch(idx, state)
+
 
 def doMuziekVanArtist():
-    artist = jsonevent["slots"]["artist"]
+    artist = get_slot_value("artist")
     play_artist_album(artist=artist)
 
 
 def doMuziekVanAlbum():
-    album = jsonevent["slots"]["album"]
+    album = get_slot_value("album")
     play_artist_album(album=album)
 
 
 def doMuziekVanAlbumArtist():
-    artist = jsonevent["slots"]["artist"]
-    album = jsonevent["slots"]["album"]
+    artist = get_slot_value("artist")
+    album = get_slot_value("album")
     play_artist_album(artist=artist, album=album)
 
 
 def doMuziekVanGenre():
-    genre = jsonevent["slots"]["genre"]
+    genre = get_slot_value("genre")
     play_artist_album(genre=genre)
 
 
 def doMuziekAlbumid():
     # speel album nummer  (0..500){albumid}
-    albumid = jsonevent["slots"]["albumid"]
+    albumid = get_slot_value("albumid")
     play_by_id(albumid)
 
 
@@ -333,7 +395,7 @@ def doMuziekPauseResume():
 
 
 def doMuziekVolume():
-    volume = jsonevent["slots"]["volume"]
+    volume = get_slot_value("volume")
     kodi.volume(volume)
 
 
@@ -360,19 +422,9 @@ def doMuziekWhatsPlaying():
 
 
 def doDuckDuckGo():
-    if "artist" in jsonevent["slots"]:
-        artist = jsonevent["slots"]["artist"]
-    else:
-        artist = ""
-
-    if "album" in jsonevent["slots"]:
-        album = jsonevent["slots"]["album"]
-    else:
-        album = ""
-    if "genre" in jsonevent["slots"]:
-        genre = jsonevent["slots"]["genre"]
-    else:
-        genre = ""
+    artist = get_slot_value("artist")
+    album = get_slot_value("album")
+    genre = get_slot_value("genre")
     answer = get_duckduckgo(artist, album, genre)
     speech(answer)
 
@@ -399,6 +451,8 @@ if __name__ == '__main__':
     kodi = kodi.Kodi(kodi_url)
 
     # Call Intent handler do[Intent]():
+    text_to_speak = get_slot_value("speech")
+    speech(get_speech(text_to_speak))
     eval("do"+intent)()
 
     # convert dict to json and print to stdout
