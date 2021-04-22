@@ -29,13 +29,11 @@ import datetime
 import requests
 import subprocess
 import kodi
-from kodimusic import Music
 
 import logging
 log = logging.getLogger(__name__)
 
 PATH = "/profiles/nl/handler/"
-musicfile = PATH + "music"
 
 duckduckgo_url = 'https://api.duckduckgo.com/?'
 domticz_url = "http://192.168.0.3:8080/json.htm?"
@@ -237,7 +235,7 @@ def kodiplay(albums):
                    % (album["album"], album["artistsearch"]))
 
         log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                  (album["id"], album["album"], album["artistsearch"]))
+                  (album["id"], album["label"], album["artistsearch"]))
         kodi.add_album_to_playlist(album["id"])
     kodi.restart_play()
 
@@ -246,8 +244,7 @@ def play_artist_album(artist="", album="", genre=""):
     log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)"
               % (artist, album, genre))
     # albums = get_albums(artist, album)
-    music = Music(kodi, musicfile)
-    albums = music.search_albuminfo(artist=artist, album=album, genre=genre)
+    albums = kodi.search_albuminfo(artist=artist, album=album, genre=genre)
     if genre is not None and len(genre) >= 3:
         genretekst = " in het genre " + genre
     else:
@@ -266,8 +263,7 @@ def play_artist_album(artist="", album="", genre=""):
 
 
 def play_by_id(albumid):
-    music = Music(kodi, musicfile)
-    albums = music.get_albuminfo(albumid)
+    albums = kodi.get_albuminfo(albumid)
     if len(albums) == 0:
         log.debug("kodiplay:geen album gevonden")
         speech("ik kan geen album nummer "+str(albumid)+" vinden")
@@ -450,7 +446,7 @@ def doMuziekNext():
 def doMuziekWhatsPlaying():
     answer = kodi.get_whats_playing()
     log.debug(str(answer))
-    if answer['result'] is not None and answer['result']['item'] is not None:
+    if 'result' in answer and 'item' in answer['result']:
         item = answer['result']['item']
         album = item["album"]
         artist = item["artist"]

@@ -25,11 +25,13 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 import datetime
 import requests
 import logging
+import re
 log = logging.getLogger(__name__)
 
 class Kodi:
-    def __init__(self, url):
+    def __init__(self, url, path=""):
         self.url = url
+        self.path = path
 
     def do_post(self, data):
         log.debug("Post data:"+data)
@@ -46,20 +48,11 @@ class Kodi:
         log.debug("Post Result:"+res.text)
         return(res.json())
 
-#{"jsonrpc": "2.0", "method": "Player.GetItem", "params": { "properties": ["album", "artist", "genre", "title"], "playerid": 0 }, "id": "AudioGetItem"}
     def get_whats_playing(self):
-        log.debug("get_all_albums")
+        log.debug("get_whats_playing")
         data = '{"jsonrpc":"2.0","method":"Player.GetItem","params":'\
                 + '{"properties":["album", "artist", "genre", "title"]'\
-                + ', "playerid": 0},"id":"item"}'
-        return self.do_post(data)
-
-    def get_all_albums(self):
-        log.debug("get_all_albums")
-        data = '{"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums"'\
-                + ',"params":{"properties":["artist","genre"]'\
-                + ',"sort":{"order":"ascending","method":"album"}}'\
-                + ',"id":"libAlba"}'
+                + ', "playerid": 0},"id":"itemData"}'
         return self.do_post(data)
 
     def restart_play(self):
@@ -100,15 +93,279 @@ class Kodi:
                + '"playlistid":0, "item":{"albumid":'+str(albumid)+'}}}'
         self.do_post(data)
 
+    def get_albums(self,artist="", album="", genre=""):
+        log.debug("get_albums")
+
+        data = '{"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums"'\
+                + ',"params":{"properties":["artist","genre"]'
+        if artist != "" or album != "" or genre != "":
+            data = data + ',"filter":{"and":[{"field":"artist", "operator":'\
+                + '"contains", "value":"'+artist+'"}'\
+                + ',{"field":"album", "operator":'\
+                + '"contains", "value":"'+album+'"}'\
+                + ',{"field": "genre", "operator":'\
+                + '"contains","value": "'+genre+'"}]}'
+        data = data + ',"sort":{"order":"ascending","method":"album"}}'\
+                + ',"id":"libAlbums"}'
+        return self.do_post(data)
+
+    def get_tracks_klassiek(self, artist="", composer="", matchtitle=""):
+        log.debug("get_tracks_klassiek")
+        data = '{"jsonrpc": "2.0", "method": "AudioLibrary.GetSongs",'\
+                + '"params": { "limits": { "start" : 0, "end": 50000 },'\
+                + '"properties": ["displayartist", "displaycomposer"],'\
+                + '"filter":{"and":[ '\
+                + '{"field": "genre", "operator": "contains","value": "klassiek"}'
+        if artist != "":
+            data = data + ',{"field": "artist", "operator": "contains",'\
+                + '"value": "'+artist+'"}'
+        if composer != "":
+            data = data + ',{"field": "artist", "operator": "contains",'\
+                + '"value": "'+composer+'"}'
+        if matchtitle != "":
+            data = data + ',{"field": "title", "operator": "contains",'\
+                + '"value": "'+matchtitle+'"}'
+        data = data + ']}'
+        # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
+        data = data + '},"id": "libSongs"}'
+
+        tracks = self.do_post(data)
+        
+        # if matchtitle != "":
+            # print(f"Voor matching:"+str(tracks["result"])+"\n================================\n")
+            # matched_tracks = []
+            # searches = matchtitle.lower().split()
+            # print(str(searches))
+            # for track in tracks["result"]["songs"]:
+                # matched = True
+                # for match in searches:
+                    # print(f"Test:{track['label']}<- match ->{match}:"+str(track["label"].lower().find(match)))
+                    # if track["label"].lower().find(match) < 0 :
+                        # matched = False
+                        # break
+                        
+                # if matched:
+                    # matched_tracks.append(track)
+                    # print("Matched track:"+str(track))
+            # tracks["result"]["songs"] = matched_tracks
+        print(f"Na matchtitle ({matchtitle}):"+str(tracks)+"\n========================\n")
+        return tracks
+
+    def add_tracks_to_playlist(self, artist, composer, matchtitle):
+        res = self.get_tracks_klassiek(artist, composer, matchtitle)
+        result = res["result"]
+        log.debug(f"add_tracks_to_playlist:Found:{result['limits']['end']}")
+
+        data = '{"jsonrpc":"2.0","id":1,"method":"Playlist.Add","params":{"playlistid":0,'\
+               + '"item":'
+        # "item":[{"songid":1839}, {"songid":1840}, {"songid":1841}, {"songid":1842}, {"songid":1878} ]}
+        separator = '['
+        for track in result['songs']:
+            data = data + separator + '{"songid":' + str(track["songid"]) + '}'
+            separator = ','
+        data = data + ']}}'
+        log.debug(f"Data:{data}")
+        return self.do_post(data)
+
+    # 
+    # ========================================================================
+    # Methods to generate slots-files for Rhasspy
+    # ========================================================================
+    # Clean Albumtitle to match with filter
+    def clean_albumtitle_filter(self,albumtitle):
+        cleaned = albumtitle.lower()
+        # skip leading numbers followed by - with spaces
+        cleaned = re.sub('^[0-9 ]*-* *','',cleaned)
+        # remove [ until the end : [] give problems in kaldi (rhasspy)
+        cleaned = re.sub('\[.*','',cleaned)
+        # remove ( until the end : () give problems in kaldi (rhasspy)
+        cleaned = re.sub('\(.*','',cleaned) 
+        # remove leading and trailing spaces
+        cleaned = cleaned.strip()
+
+        return cleaned
+        
+    # Clean albumtitle to match with speech
+    def clean_albumtitle_speech(self,albumtitle):
+        cleaned = self.clean_albumtitle_filter(albumtitle)
+        # No.4 1 
+        cleaned = re.sub('[^a-z0-9]',' ',cleaned)
+        cleaned = re.sub('  *',' ',cleaned)
+
+        cleaned = cleaned.strip()
+
+        return cleaned
+
+    # Clean Tracktitle to match with filter
+    def clean_tracktitle_filter(self,tracktitle):
+        cleaned = tracktitle.lower()
+        # skip leading numbers followed by - with spaces
+        cleaned = re.sub('^[0-9 ]*-* *','',cleaned)
+        # remove leading composername followed by :
+        cleaned = re.sub('^[a-z]*:','',cleaned)
+        # keep only part before - or :
+        cleaned = re.sub('[-:].*','',cleaned)
+        # remove [ until the end
+        cleaned = re.sub('\[.*','',cleaned)
+        # remove ( until the end
+        cleaned = re.sub('\(.*','',cleaned) # () give problems in kaldi (rhasspy)
+        # remove Op. 23
+        cleaned = re.sub('^[a-z]+[. ]*[0-9]+ *[0-9]*','',cleaned)
+        cleaned = re.sub(' in (bes|cis|des|fis|ges|as|es|[a-g])* *(sharp|flat|moll|dur)* *(majeur|mineur|major|minor|maj|min|klein|groot)* *$',' ',cleaned)
+        cleaned = re.sub('(bes|cis|des|fis|ges|as|es|[a-g]) (sharp|flat|moll|dur|majeur|mineur|major|minor|maj|min|klein|groot)',' ',cleaned)
+        cleaned = re.sub('([0-9])  *[0-9a-z]\.* .*$','\\1',cleaned)
+        cleaned = re.sub('([0-9])  *[0-9.a-z]$','\\1',cleaned)
+        cleaned = re.sub('.*contrapunctus.*','contrapunctus',cleaned)
+        cleaned = re.sub('canto ostinato.*','canto ostinato',cleaned)
+        cleaned = re.sub('goldberg variations.*','goldberg variations',cleaned)
+        
+        # remove leading and trailing spaces
+        cleaned = cleaned.strip()
+
+        return cleaned
+        
+    # Clean tracktitle to match with speech
+    def clean_tracktitle_speech(self,tracktitle):
+        cleaned = self.clean_tracktitle_filter(tracktitle)
+        # No.4 1 
+        cleaned = re.sub('( no.\d) [1-9x].*','\\1',cleaned)
+        cleaned = re.sub('op[. ]+\d*[-/0-9]*', '', cleaned)
+        cleaned = re.sub('violin concerto.*','vioolconcert',cleaned)
+        cleaned = re.sub('\.\.\.',',',cleaned)
+        cleaned = re.sub('\[[^\]]*\]',' ',cleaned)
+        cleaned = re.sub('["\']',' ',cleaned)
+        cleaned = re.sub('[({].*[)}]',' ',cleaned)
+        cleaned = re.sub(',',' ',cleaned)
+        cleaned = re.sub('no\.','nummer ',cleaned)
+        cleaned = re.sub('nr\.','nummer ',cleaned)
+        cleaned = re.sub('  *',' ',cleaned)
+
+        cleaned = cleaned.strip()
+
+        return cleaned
+
+
+    def create_slots_albums(self,albums):
+        albumset = set()
+        
+        for album in albums:
+            speech_title = self.clean_albumtitle_speech(album["label"])
+            filter_title = self.clean_albumtitle_filter(album["label"])
+            if filter_title == "" or speech_title == "":
+                continue
+            if filter_title.startswith(speech_title):
+                albumset.add(f"{speech_title}")
+            else:
+                albumset.add(f"({speech_title}):({filter_title})")
+                
+        falbums = open(self.path+"albums", "w+")
+        for albumstring in sorted(albumset):
+            falbums.write(albumstring+'\n')
+        falbums.close()
+
+    def create_slots_tracks(self,tracks):
+        trackset = set()
+        for track in tracks:
+            # track["label"] = track["label"].replace("'"," ")
+            # track["label"] = track["label"].replace('"'," ")
+            speech_title = self.clean_tracktitle_speech(track["label"])
+            filter_title = self.clean_tracktitle_filter(track["label"])
+            if filter_title == "" or speech_title == "":
+                continue
+            if filter_title.startswith(speech_title):
+                trackset.add(f"{speech_title}")
+            else:
+                trackset.add(f"({speech_title}):({filter_title})")
+       
+        ftracks = open(self.path+"tracks", "w+")
+        for track in sorted(trackset):
+            ftracks.write(track+'\n')
+        ftracks.close()
+
+    def create_slots_composers(self,tracks):
+        composerset = set()
+        for track in tracks:
+            composer = re.sub('[;,].*','',track["displaycomposer"])
+            composerset.add(composer.lower())
+            
+        fcomposers = open(self.path+"composers", "w+")
+        for composer in sorted(composerset):
+            fcomposers.write(composer+'\n')
+        fcomposers.close()
+
+
+    def create_slots_artists(self,albums):
+        artistset = set()
+        
+        for album in albums:
+            for artist in album["artist"]:
+                artistset.add(artist.lower())
+
+        fartists = open(self.path+"artists", "w+")
+        for artist in sorted(artistset):
+            fartists.write(artist+'\n')
+        fartists.close()
+
+
+    def create_slots_genres(self,albums):
+        genreset = set()
+        for album in albums:
+            for genre in album["genre"]:
+                genreset.add(genre.lower())
+
+        fgenres = open(self.path+"genres", "w+")
+        for genre in sorted(genreset):
+            fgenres.write(genre+'\n')
+        fgenres.close()
+  
+    def create_slots_files(self):
+        res = self.get_tracks_klassiek("","","")
+        result = res["result"]
+        # print(str(result))
+        # print(f"Gevonden:{result['limits']['end']}")
+        if "songs" in result:
+            self.create_slots_tracks(result["songs"])
+            self.create_slots_composers(result["songs"])
+        res = self.get_albums()
+        result = res["result"]
+        if "albums" in result:
+            self.create_slots_artists(result["albums"])
+            self.create_slots_albums(result["albums"])
+            self.create_slots_genres(result["albums"])
+        
 if __name__ == '__main__':
+
+    '''
+    getallalbums = 
+    {"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums","params":{"limits": { "start" : 0, "end": 5000 },"properties":["artist","genre"],
+    "sort":{"order":"ascending","method":"album"}},"id":"libAlbums"}
+    getalltracks =
+    {"jsonrpc": "2.0", "method": "AudioLibrary.GetSongs","params": { "limits": { "start" : 0, "end": 50000 },"properties": ["displayartist", "displaycomposer"],
+    "filter":{"field": "genre", "operator": "contains","value": "klassiek"}},
+    "id": "libSongs"}
+            # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
+            data = data + '
+    '''
     logging.basicConfig(filename='kodi.log',
-                        level=logging.INFO,
+                        level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-4.4s %(module)-14.14s - %(message)s',
                         datefmt='%Y%m%d %H:%M:%S')
 
     kodi_url = "http://192.168.0.5:8080/jsonrpc"
 
     kodi = Kodi(kodi_url)
-    #kodi.add_album_to_playlist("217")
-    kodi.pause_resume()
-
+    # #kodi.add_album_to_playlist("217")
+    # kodi.pause_resume()
+    import sys
+    if len(sys.argv) > 3:
+        matchtitle = sys.argv[3]
+    else: matchtitle = ""
+    if len(sys.argv) > 2:
+        artist = sys.argv[2]
+    else: artist = ""
+    if len(sys.argv) > 1:
+        composer = sys.argv[1]
+    else:
+        kodi.create_slots_files()
+    
+# End Of File
