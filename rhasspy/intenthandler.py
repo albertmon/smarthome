@@ -40,6 +40,7 @@ musicfile = PATH + "music"
 duckduckgo_url = 'https://api.duckduckgo.com/?'
 domticz_url = "http://192.168.0.3:8080/json.htm?"
 kodi_url = "http://192.168.0.5:8080/jsonrpc"
+rhasspy_url = "http://192.168.0.3:12101/api/"
 
 temperatuur_idx = "19"
 wind_idx = "20"
@@ -91,6 +92,38 @@ def get_speech(text_to_speak):
            new_speech = new_speech + text
        is_var = not is_var
     return new_speech
+
+# =============================================================================
+# Conversations/Confirmation
+def do_post_rhasspy(url,data=""):
+    log.debug("Post data to rhasspy_url:"+data)
+    try:
+        res = requests.post(url, data=data)
+        if res.status_code != 200:
+            log.info("do_post(Url:[%s]\nResult:%s, text:[%s]"
+                     % (url, res.status_code, res.text))
+    except ConnectionError:
+        log.warning("ConnectionError for url [%s]" % (url))
+        return None
+
+    # log.debug("Post Result:"+res.text)
+    return(res)
+
+
+def rhasspy_speak(question):
+    do_post_rhasspy(rhasspy_url+"text-to-speech",question)
+
+def rhasspy_listen_for_intent():
+    res = do_post_rhasspy(rhasspy_url+"listen-for-command?nohass=true")
+    return res.json()
+
+
+def rhasspy_confirm(question):
+    rhasspy_speak(question)
+    res = rhasspy_listen_for_intent()
+    log.debug(f"Reply={str(res)}")
+    return("intent" in res and res["intent"]["name"] == "Confirm")
+
 
 def get_domoticz(command):
     url = domticz_url+command
@@ -215,18 +248,21 @@ def play_artist_album(artist="", album="", genre=""):
     # albums = get_albums(artist, album)
     music = Music(kodi, musicfile)
     albums = music.search_albuminfo(artist=artist, album=album, genre=genre)
-    if genre is not None:
+    if genre is not None and len(genre) >= 3:
         genretekst = " in het genre " + genre
     else:
         genretekst = ""
+
     if len(albums) == 0:
         log.debug("kodiplay:geen album gevonden")
         if artist == "":
             artist = "een wilekeurige artiest"
         speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
-    else:
-        speech("ik ga alle albums van %s afspelen%s" % (artist, genretekst))
+    elif rhasspy_confirm(f"moet ik muziek van {artist} afspelen {genretekst} ?"):
+        speech(f"ik ga alle albums van {artist} afspelen {genretekst}")
         kodiplay(albums)
+    else:
+        speech("okee dan niet")
 
 
 def play_by_id(albumid):
@@ -242,7 +278,12 @@ def play_by_id(albumid):
 # =============================================================================
 
 
-def doDummy():
+def doConfirm():
+    # Should not be called
+    pass
+
+
+def doDeny():
     speech("okee")
 
 

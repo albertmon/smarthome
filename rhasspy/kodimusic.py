@@ -194,10 +194,6 @@ if __name__ == '__main__':
     music.refresh_album_info("")  # create files in current directory
 
     # test
-    albumlist = music.get_albuminfo("4")
-    log.info("album[4]:"+str(albumlist))
-    print("album[4]:"+str(albumlist))
-    print("------------------------------------------")
     albumlist = music.search_albuminfo(artist="pink floyd", album="echoes")
     log.info("pink floyd, echoes:"+str(albumlist))
     print("pink floyd, echoes:"+str(albumlist))
