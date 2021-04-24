@@ -93,6 +93,11 @@ class Kodi:
                + '"playlistid":0, "item":{"albumid":'+str(albumid)+'}}}'
         self.do_post(data)
 
+    def add_song_to_playlist(self, songid):
+        data = '{"jsonrpc":"2.0", "id":1,"method":"Playlist.Add","params":{'\
+               + '"playlistid":0, "item":{"songid":'+str(songid)+'}}}'
+        self.do_post(data)
+
     def get_albums(self,artist="", album="", genre=""):
         log.debug("get_albums")
 
@@ -107,10 +112,17 @@ class Kodi:
                 + '"contains","value": "'+genre+'"}]}'
         data = data + ',"sort":{"order":"ascending","method":"album"}}'\
                 + ',"id":"libAlbums"}'
-        return self.do_post(data)
+        res = self.do_post(data)
+        if "result" in res and "albums" in res["result"]:
+            albums = res["result"]["albums"]
+        else:
+            albums = []
+        return albums
+
 
     def get_tracks_klassiek(self, artist="", composer="", matchtitle=""):
-        log.debug("get_tracks_klassiek")
+        log.debug(f"get_tracks_klassiek artist={artist}, "\
+            + f"composer={composer}, matchtitle={matchtitle}")
         data = '{"jsonrpc": "2.0", "method": "AudioLibrary.GetSongs",'\
                 + '"params": { "limits": { "start" : 0, "end": 50000 },'\
                 + '"properties": ["displayartist", "displaycomposer"],'\
@@ -129,8 +141,14 @@ class Kodi:
         # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
         data = data + '},"id": "libSongs"}'
 
-        tracks = self.do_post(data)
-        
+        res = self.do_post(data)
+        log.debug(f"get_tracks_klassiek:Found:{res['result']['limits']['end']}")
+
+        if "result" in res and "songs" in res["result"]:
+            tracks = res["result"]["songs"]
+        else:
+            tracks = []
+
         # if matchtitle != "":
             # print(f"Voor matching:"+str(tracks["result"])+"\n================================\n")
             # matched_tracks = []
@@ -152,15 +170,13 @@ class Kodi:
         return tracks
 
     def add_tracks_to_playlist(self, artist, composer, matchtitle):
-        res = self.get_tracks_klassiek(artist, composer, matchtitle)
-        result = res["result"]
-        log.debug(f"add_tracks_to_playlist:Found:{result['limits']['end']}")
+        tracks = self.get_tracks_klassiek(artist, composer, matchtitle)
 
         data = '{"jsonrpc":"2.0","id":1,"method":"Playlist.Add","params":{"playlistid":0,'\
                + '"item":'
         # "item":[{"songid":1839}, {"songid":1840}, {"songid":1841}, {"songid":1842}, {"songid":1878} ]}
         separator = '['
-        for track in result['songs']:
+        for track in tracks:
             data = data + separator + '{"songid":' + str(track["songid"]) + '}'
             separator = ','
         data = data + ']}}'
@@ -212,9 +228,10 @@ class Kodi:
         # remove Op. 23
         cleaned = re.sub('^[a-z]+[. ]*[0-9]+ *[0-9]*','',cleaned)
         cleaned = re.sub(' in (bes|cis|des|fis|ges|as|es|[a-g])* *(sharp|flat|moll|dur)* *(majeur|mineur|major|minor|maj|min|klein|groot)* *$',' ',cleaned)
-        cleaned = re.sub('(bes|cis|des|fis|ges|as|es|[a-g]) (sharp|flat|moll|dur|majeur|mineur|major|minor|maj|min|klein|groot)',' ',cleaned)
+        cleaned = re.sub('(bes|cis|des|fis|ges|as|es|[a-g]) (sharp|flat|moll|dur|majeur|mineur|major|minor|maj|min|klein|groot)$',' ',cleaned)
         cleaned = re.sub('([0-9])  *[0-9a-z]\.* .*$','\\1',cleaned)
         cleaned = re.sub('([0-9])  *[0-9.a-z]$','\\1',cleaned)
+        cleaned = re.sub('[0-9]\..*','',cleaned) # . after number gives compile error
         cleaned = re.sub('.*contrapunctus.*','contrapunctus',cleaned)
         cleaned = re.sub('canto ostinato.*','canto ostinato',cleaned)
         cleaned = re.sub('goldberg variations.*','goldberg variations',cleaned)
@@ -233,11 +250,12 @@ class Kodi:
         cleaned = re.sub('violin concerto.*','vioolconcert',cleaned)
         cleaned = re.sub('\.\.\.',',',cleaned)
         cleaned = re.sub('\[[^\]]*\]',' ',cleaned)
-        cleaned = re.sub('["\']',' ',cleaned)
+        cleaned = re.sub('["\'!]',' ',cleaned)
         cleaned = re.sub('[({].*[)}]',' ',cleaned)
         cleaned = re.sub(',',' ',cleaned)
         cleaned = re.sub('no\.','nummer ',cleaned)
         cleaned = re.sub('nr\.','nummer ',cleaned)
+        cleaned = re.sub('&',' en ',cleaned)
         cleaned = re.sub('  *',' ',cleaned)
 
         cleaned = cleaned.strip()
@@ -319,19 +337,15 @@ class Kodi:
         fgenres.close()
   
     def create_slots_files(self):
-        res = self.get_tracks_klassiek("","","")
-        result = res["result"]
-        # print(str(result))
-        # print(f"Gevonden:{result['limits']['end']}")
-        if "songs" in result:
-            self.create_slots_tracks(result["songs"])
-            self.create_slots_composers(result["songs"])
-        res = self.get_albums()
-        result = res["result"]
-        if "albums" in result:
-            self.create_slots_artists(result["albums"])
-            self.create_slots_albums(result["albums"])
-            self.create_slots_genres(result["albums"])
+        tracks = self.get_tracks_klassiek("","","")
+        if len(tracks) > 0:
+            self.create_slots_tracks(tracks)
+            self.create_slots_composers(tracks)
+        albums = self.get_albums()
+        if len(albums) > 0:
+            self.create_slots_artists(albums)
+            self.create_slots_albums(albums)
+            self.create_slots_genres(albums)
         
 if __name__ == '__main__':
 

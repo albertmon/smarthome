@@ -223,8 +223,8 @@ def domoScene(idx):
     get_domoticz(command)
 
 
-def kodiplay(albums):
-    log.debug("kodiplay:gotAlbums:%s" % (str(albums)))
+def kodiplay_albums(albums):
+    log.debug("kodiplay_albums:gotAlbums:%s" % (str(albums)))
     kodi.clear_playlist()
     log.debug("albums[0]=%s" % (str(albums[0])))
     for album in albums:
@@ -235,8 +235,20 @@ def kodiplay(albums):
                    % (album["album"], album["artistsearch"]))
 
         log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                  (album["id"], album["label"], album["artistsearch"]))
+                  (album["albumid"], album["label"], album["artistsearch"]))
         kodi.add_album_to_playlist(album["id"])
+    kodi.restart_play()
+
+def kodiplay_songs(songs):
+    log.debug("kodiplay_songs:gotSongs:%s" % (str(songs)))
+    kodi.clear_playlist()
+    log.debug("songs[0]=%s" % (str(songs[0])))
+    for song in songs:
+        log.debug("song=%s" % (str(song)))
+
+        log.debug(f"Ik ga song %s (%s) van %s op playlist zetten" %
+                  (song["songid"], song["label"], song["displaycomposer"]))
+        kodi.add_song_to_playlist(song["songid"])
     kodi.restart_play()
 
 
@@ -244,31 +256,45 @@ def play_artist_album(artist="", album="", genre=""):
     log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)"
               % (artist, album, genre))
     # albums = get_albums(artist, album)
-    albums = kodi.search_albuminfo(artist=artist, album=album, genre=genre)
+    albums = kodi.get_albums(artist=artist, album=album, genre=genre)
+        
     if genre is not None and len(genre) >= 3:
         genretekst = " in het genre " + genre
     else:
         genretekst = ""
 
     if len(albums) == 0:
-        log.debug("kodiplay:geen album gevonden")
+        log.debug("play_artist_album:geen album gevonden")
         if artist == "":
             artist = "een wilekeurige artiest"
         speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
     elif rhasspy_confirm(f"moet ik muziek van {artist} afspelen {genretekst} ?"):
         speech(f"ik ga alle albums van {artist} afspelen {genretekst}")
-        kodiplay(albums)
+        kodiplay_albums(albums)
     else:
         speech("okee dan niet")
 
-
-def play_by_id(albumid):
-    albums = kodi.get_albuminfo(albumid)
-    if len(albums) == 0:
-        log.debug("kodiplay:geen album gevonden")
-        speech("ik kan geen album nummer "+str(albumid)+" vinden")
+def play_tracks_klassiek(artist="", composer="", matchtitle=""):
+    log.debug("play_artist_album:(artist=%s, composer=%s, matchtitle==%s)"
+              % (artist, composer, matchtitle))
+    tracks = kodi.get_tracks_klassiek(artist, composer, matchtitle)
+        
+    if len(tracks) == 0:
+        log.debug("play_tracks_klassiek:geen tracks gevonden")
+        speech("ik kan geen treks "+matchtitle+" vinden")
+    elif rhasspy_confirm(f"moet ik muziek {matchtitle} afspelen ?"):
+        speech(f"ik ga de treks {matchtitle} afspelen")
+        kodiplay_songs(tracks)
     else:
-        kodiplay(albums)
+        speech("okee dan niet")
+
+# def play_by_id(albumid):
+    # albums = kodi.get_albuminfo(albumid)
+    # if len(albums) == 0:
+        # log.debug("kodiplay:geen album gevonden")
+        # speech("ik kan geen album nummer "+str(albumid)+" vinden")
+    # else:
+        # kodiplay(albums)
 
 
 # =============================================================================
@@ -395,6 +421,24 @@ def doSwitch():
     domoSwitch(idx, state)
 
 
+def doMuziekKlassiek():
+    '''
+    [MuziekKlassiek]
+    (speel:) (pianomuziek:piano|vioolmuziek:viool|cellomuziek:cello|pianoconcert|vioolconcert|celloconcert|nocturne|toccata|fuga|concert|suite){match} [van ($composers){composer}] [door ($artists){artist}]
+    (speel:)  [(de:)|(het:)] (eerste:1|tweede:2|derde:no3|vierde:4|vijfde:5|zesde:6|zevende:7|achtste:8|negende:9){selectienum} (piano concert|viool concert|cello concert|brandenburger concert|symphonie){selectie} [van ($composers){composer}]
+    Speel (symphonie [nummer:no.  (1..9) ] ){match}  [van ($composers){composer}]
+    Speel [de|het] ($tracks){track}   [van ($composers){composer}]
+    '''
+    log.debug(f"doMuziekKlassiek")
+    track = get_slot_value("track")
+    log.debug(f"doMuziekKlassiek: track=>{track}<")
+    selectie = get_slot_value("selectie")
+    log.debug(f"doMuziekKlassiek: selectie=>{selectie}<")
+    artist = get_slot_value("artist")
+    composer = get_slot_value("composer")
+    log.debug(f"play_tracks_klassiek(artist={artist}, composer={composer}, matchtitle={track}{selectie}")
+    play_tracks_klassiek(artist=artist, composer=composer, matchtitle=track+selectie)
+
 def doMuziekVanArtist():
     artist = get_slot_value("artist")
     play_artist_album(artist=artist)
@@ -416,10 +460,10 @@ def doMuziekVanGenre():
     play_artist_album(genre=genre)
 
 
-def doMuziekAlbumid():
-    # speel album nummer  (0..500){albumid}
-    albumid = get_slot_value("albumid")
-    play_by_id(albumid)
+# def doMuziekAlbumid():
+    # # speel album nummer  (0..500){albumid}
+    # albumid = get_slot_value("albumid")
+    # play_by_id(albumid)
 
 
 def doMuziekAlbumlijstVanArtist():
