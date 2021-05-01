@@ -262,43 +262,54 @@ class Kodi:
 
         return cleaned
 
+    def add_to_dict(self,slot_entries,new_speech,new_filter):
+        if new_speech in slot_entries:
+            old_filter = slot_entries[new_speech]
+            if new_filter in old_filter:
+                my_filter = new_filter
+            elif old_filter in new_filter:
+                my_filter = old_filter
+            else:
+                my_filter = old_filter
+                while not new_filter.startswith(old_filter):
+                    old_filter = old_filter[:-1]
+        else:
+            my_filter = new_filter
+            
+        slot_entries[new_speech] = my_filter
+
+    def save_slots(self,slots_dict,filename):
+        fslots = open(self.path+filename, "w+")
+        for speech,title in sorted(slots_dict.items()):
+            if title.startswith(speech):
+                slotstring = speech
+            else:
+                slotstring = (f"({speech}):({title})")
+            fslots.write(slotstring+'\n')
+        fslots.close()
 
     def create_slots_albums(self,albums):
-        albumset = set()
+        albumslots = {}
         
         for album in albums:
             speech_title = self.clean_albumtitle_speech(album["label"])
             filter_title = self.clean_albumtitle_filter(album["label"])
             if filter_title == "" or speech_title == "":
                 continue
-            if filter_title.startswith(speech_title):
-                albumset.add(f"{speech_title}")
-            else:
-                albumset.add(f"({speech_title}):({filter_title})")
-                
-        falbums = open(self.path+"albums", "w+")
-        for albumstring in sorted(albumset):
-            falbums.write(albumstring+'\n')
-        falbums.close()
+            self.add_to_dict(albumslots,speech_title,filter_title)
+
+        self.save_slots(albumslots,"albums")
 
     def create_slots_tracks(self,tracks):
-        trackset = set()
+        trackslots = {}
         for track in tracks:
-            # track["label"] = track["label"].replace("'"," ")
-            # track["label"] = track["label"].replace('"'," ")
             speech_title = self.clean_tracktitle_speech(track["label"])
             filter_title = self.clean_tracktitle_filter(track["label"])
             if filter_title == "" or speech_title == "":
                 continue
-            if filter_title.startswith(speech_title):
-                trackset.add(f"{speech_title}")
-            else:
-                trackset.add(f"({speech_title}):({filter_title})")
+            self.add_to_dict(trackslots,speech_title,filter_title)
        
-        ftracks = open(self.path+"tracks", "w+")
-        for track in sorted(trackset):
-            ftracks.write(track+'\n')
-        ftracks.close()
+        self.save_slots(trackslots,"tracks")
 
     def create_slots_composers(self,tracks):
         composerset = set()

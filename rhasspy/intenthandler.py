@@ -232,11 +232,11 @@ def kodiplay_albums(albums):
 
         if len(albums) == 1:
             speech("Ik ga het album %s van %s afspelen"
-                   % (album["album"], album["artistsearch"]))
+                   % (album["label"], str(album["artist"])))
 
         log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                  (album["albumid"], album["label"], album["artistsearch"]))
-        kodi.add_album_to_playlist(album["id"])
+                  (album["albumid"], album["label"], str(album["artist"])))
+        kodi.add_album_to_playlist(album["albumid"])
     kodi.restart_play()
 
 def kodiplay_songs(songs):
@@ -257,19 +257,30 @@ def play_artist_album(artist="", album="", genre=""):
               % (artist, album, genre))
     # albums = get_albums(artist, album)
     albums = kodi.get_albums(artist=artist, album=album, genre=genre)
-        
+
+    if artist is "":
+        artisttext = ""
+    else :
+        artisttext = f" van {artist}"
+
+    if album is "":
+        albumtext = " albums"
+    else :
+        albumtext = f" het album {album}"
+
     if genre is not None and len(genre) >= 3:
         genretekst = " in het genre " + genre
     else:
         genretekst = ""
 
+    confirmtext = f"moet ik {albumtext}{artist}{genretekst} afspelen ?"
     if len(albums) == 0:
         log.debug("play_artist_album:geen album gevonden")
         if artist == "":
             artist = "een wilekeurige artiest"
         speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
-    elif rhasspy_confirm(f"moet ik muziek van {artist} afspelen {genretekst} ?"):
-        speech(f"ik ga alle albums van {artist} afspelen {genretekst}")
+    elif rhasspy_confirm(confirmtext):
+        speech(f"ik ga {str(len(albums))} afspelen {genretekst}")
         kodiplay_albums(albums)
     else:
         speech("okee dan niet")
