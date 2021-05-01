@@ -113,7 +113,7 @@ class RrdWeather(Rrd):
         return datetime.datetime.fromisoformat(input_data["time"])
 
     def input_to_data(self, input_data):
-        data_datetime = datetime.datetime.fromisoformat(input_data["time"])
+        data_datetime = self.get_datetime_for_update(input_data)
         timestamp = round(data_datetime.timestamp())
         tempc = input_data["temperature_C"]
         windm = input_data["wind_max_m_s"]

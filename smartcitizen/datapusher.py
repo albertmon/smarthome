@@ -22,7 +22,11 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
    So any resemblance to already existing code is purely coincidental
 '''
 
+import re
+import os
 import sys
+import rrdtool
+import datetime
 import requests
 from time import sleep
 import logging
@@ -68,107 +72,159 @@ POLL_INTERVAL = 60
 # ====================================================================
 
 
-def api_get(url):
-    log.debug(f"api_get(url={url})")
+WEATHER = 1
+P1 = 2
 
+rrdfiledir_weather="/home/weather/data/"
+rrdfiledir_p1="/home/weather/p1data/"
+
+domo_host = "192.168.0.3"
+domo_port = 8080
+
+domo_idx_elektra = 6
+domo_idx_gas = 7
+domo_idx_temphum = 19
+domo_idx_wind = 20
+
+opt_verbose = 1
+
+def get_lastdata(w_or_p1):
+    data = { 'ds' : {'tempc':0,'windm':0,'winda':0,'windd':0,'humid':0,'rainmm':0,'current_elec_watt':0,'hourly_gas_liter':0},
+            'date': 'NO DATA'}
+    filename = datetime.datetime.now().strftime("%Y%m%d.rrd")
+    if w_or_p1 == WEATHER:
+        filename = rrdfiledir_weather+filename
+        if opt_verbose >1 :
+            print(f"Opening file {filename} ({w_or_p1})")
+        # ds : tempc:windm:winda:windd:humid:rainmm",
+    elif w_or_p1 == P1:
+        filename = rrdfiledir_p1 + filename
+        if opt_verbose >1 :
+            print(f"Opening file {filename} ({w_or_p1})")
+        #DS: current_elec_watt: hourly_gas_liter
+        
+    if os.path.exists(filename):
+        data = rrdtool.lastupdate(filename)
+        if opt_verbose >1:
+            print(f"Date:{data['date']}\nDS:{str(data['ds'])}")
+            #['tempc']}"
+            #    +f"{int(3.6 * data['ds']['windm'])} km/u\n{data['ds']['humid']} %")
+    return data
+
+def send_url(url):
+    log.debug(f"Url:{url}.")
+        
     try:
         res = requests.get(url)
         if res.status_code != 200:
-            log.warn(f"api_get({url}), Result:{res.status_code}, text:{res.text}")
-    except ConnectionError:
-        log.warn(f"ConnectionError for url {url}")
-        return(None)
-
-    return res.json
-
-
-# def send_baro(idx,value):
-    # get_url = f"{DOMOTICZ_URL}/json.htm?type=command&param=udevice&idx={idx}"\
-    # api_get(get_url)
-
-
-# def send_lux(idx,value):
-    # get_url = f"{DOMOTICZ_URL}/json.htm?type=command&param=udevice&idx={idx}"\
-              # + f"{value}"
-    # send_url(get_url)
-
-def send_data(sensor,config):
-    log.debug(f'send_data(sensor={str(sensor)})')
-    log.debug(f'send_data(config={str(config)})')
-    idx = config["domoidx"]
-    get_url = f"{DOMOTICZ_URL}/json.htm?type=command&param=udevice&idx={idx}"
-    if config["type"] == "Barometer":
-        api_get(get_url+f'&nvalue=0&svalue={sensor["value"]*10};0')
-    elif config["type"] == "Lux":
-        api_get(get_url+f'&svalue={sensor["value"]}')
-    elif config["type"] == "Temperature":
-        api_get(get_url+f'&nvalue=0&svalue={sensor["value"]}')
-        
-
-def get_sensordata():
-    log.debug("get sensordata from:"+SMART_CITIZEN_URL)
-    try:
-        res = requests.get(SMART_CITIZEN_URL)
-        if res.status_code != 200:
-            log.warn(f"get sensordata from: {SMART_CITIZEN_URL}], Result:{res.status_code}, text:{res.text}")
+            log.info(f"Url:[{url}]")
+            log.info(f"Result:{res.status_code}, text:{res.text}")
     except ConnectionError:
         timestamp = datetime.datetime.now().strftime("%Y%m%d %H:%M")
-        log.warn(f"ConnectionError for url {SMART_CITIZEN_URL}")
-
-    json_data = res.json()
-    log.debug("json_data="+str(json_data))
-    return(json_data["data"])
-
+        log.error(f"ConnectionError for url {url} at {timestamp}")
+'''
+=====================
+Gas
+=====================
+URL: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=USAGE
+USAGE= Gas usage in liter (1000 liter = 1 m³)
+So if your gas meter shows f.i. 145,332 m³ you should send 145332.
+The USAGE is the total usage in liters from start, not f.i. the daily usage.
+'''
+def send_verbruik_gas(usage):
+    get_url = f"http://{domo_host}:{domo_port}/json.htm?type=command&param=udevice&idx={domo_idx_gas}&svalue={usage}"
+    send_url(get_url)
+    
 
 '''
-		"sensors": [
-			{
-				"id": 113,
-				"ancestry": "111",
-				"name": "AMS CCS811 - TVOC",
-				"description": "Total Volatile Organic Compounds Digital Indoor Sensor",
-				"unit": "ppb",
-				"created_at": "2019-03-21T16:43:37Z",
-				"updated_at": "2019-03-21T16:43:37Z",
-				"measurement_id": 47,
-				"uuid": "0c2a1afc-dc08-4066-aacb-0bde6a3ae6f5",
-				"value": 0.0,
-				"raw_value": 0.0,
-				"prev_value": 0.0,
-				"prev_raw_value": 0.0
-			},
+=====================
+Electricity (instant and counter)
+=====================
+URL: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=POWER;ENERGY
+IDX = id of your device (This number can be found in the devices tab in the column "IDX")
+POWER = current power
+ENERGY = cumulative energy in Watt-hours (Wh) This is an incrementing counter. (if you choose as type "Energy read : Computed", this is just a "dummy" counter, not updatable because it's the result of DomoticZ calculs from POWER)
+'''
+def send_elektra(power,energy=0):
+
+    get_url = f"http://{domo_host}:{domo_port}/json.htm?type=command&param=udevice&idx={domo_idx_elektra}&svalue={power};{energy}"
+    send_url(get_url)
 
 '''
+=====================
+Temperature/humidity
+=====================
+URL: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=TEMP;HUM;HUM_STAT
+IDX = id of your device (This number can be found in the devices tab in the column "IDX")
+TEMP = Temperature
+HUM = Humidity (0-100 %)
+HUM_STAT = Humidity status
 
+HUM_STAT can be one of:
+0=Normal
+1=Comfortable
+2=Dry
+3=Wet
+'''
+def send_temp_hum(temp,hum,hum_stat=0):
 
-def send_sensors():
-    data = get_sensordata()
-    for sensor in data["sensors"]:
-        log.debug("id:%s,name:%s, value:%d (%s)"
-                  % (sensor["id"], sensor["name"],
-                     sensor["value"], sensor["unit"]))
-        for config in SENSORS:
-            if sensor["id"] == config["scid"]:
-                send_data(sensor, config)
-                break
+    get_url = f"http://{domo_host}:{domo_port}/json.htm?type=command&param=udevice&idx={domo_idx_temphum}&svalue={temp};{hum};{hum_stat}"
+    send_url(get_url)
 
+'''
+=====================
+Wind
+=====================
+URL: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=WB;WD;WS;WG;22;24
+IDX = id of your device (This number can be found in the devices tab in the column "IDX")
+WB = Wind bearing (0-359)
+WD = Wind direction (S, SW, NNW, etc.)
+WS = 10 * Wind speed [m/s]
+WG = 10 * Gust [m/s]
+22 = Temperature
+24 = Temperature Windchill
+'''
+windDirection =  ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"]
+def winddir(bearing):
+    return windDirection[int((float(bearing)+11.25)/22.5)]
+    
+def send_wind(wb,wd,ws,wg,temp,temp_wc=0):
 
-# ============================================================================
+    get_url = f"http://{domo_host}:{domo_port}/json.htm?type=command&param=udevice&idx={domo_idx_wind}&svalue={wb};{wd};{ws};{wg};{temp};{temp_wc}"
+    send_url(get_url)
 
-formatstr = '%(asctime)s %(levelname)-4.4s %(module)-14.14s (%(lineno)d)'\
-             + '- %(message)s'
-logging.basicConfig(filename=LOGFILE_PATH,
-                    level=logging.DEBUG,
-                    format=formatstr,
-                    datefmt='%Y%m%d %H:%M:%S')
+def send_weather():
+    data = get_lastdata(WEATHER)
+    if data['date'] != 'NO DATA':
+        ds = data['ds']
+        #send_wind(ds['windd'],winddir(ds['windd']),ds['winda'],ds['windm'],ds['tempc'])
+        send_wind(ds['windd'],winddir(ds['windd']),str(int(10*float(ds['winda']))),str(int(10*float(ds['windm']))),ds['tempc'])
+        send_temp_hum(ds['tempc'],ds['humid'])
+        
+def send_p1():
+    data = get_lastdata(P1)
+    if data['date'] != 'NO DATA':
+        ds = data['ds']
+        send_elektra(ds['current_elec_watt'])
+        send_verbruik_gas(ds['hourly_gas_liter']/10000)
 
-while True:
-    try:
-        print("new iteration")
-        send_sensors()
-        print("sleep "+str(POLL_INTERVAL))
-        sleep(POLL_INTERVAL)
-    except ConnectionError: # catch *all* exceptions
-        log.error(f"{sys.exc_info()[0]}")
+if __name__ == '__main__':
+    formatstr = '%(asctime)s %(levelname)-5.5s %(module)-14.14s (%(lineno)d)'\
+                 + '- %(message)s'
+    logging.basicConfig(filename=PATH+'datapusher.log',
+                        level=logging.DEBUG,
+                        format=formatstr,
+                        datefmt='%Y%m%d %H:%M:%S')
+
+    while True:
+        try:
+            log.debug(f"new iteration")
+            send_weather()
+            send_p1()
+            sleep(5)
+        except: # catch *all* exceptions
+            e = sys.exc_info()[0]
+            debug.warn(f"ERROR:{e}, sleep for 5 minutes",file=sys.stderr)
+            sleep(300)
 
 

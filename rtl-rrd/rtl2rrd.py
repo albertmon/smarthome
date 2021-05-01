@@ -62,7 +62,7 @@ def mail_start():
     body = f"(Re)starting receiving data for weather station on "\
            +f"{datetime.datetime.now().strftime('%c')}"
     msg = f"To: {mail_to}\nFrom: {mail_from}\nSubject: {subject}\n{body}\n\n"
-    print(f"Sending mail to {mail_to}\nMessage:\n{msg}")
+    log.info(f"Sending mail to {mail_to}\nMessage:\n{msg}")
     process = subprocess.Popen(["/usr/sbin/ssmtp", mail_to],
                  stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     process.communicate(msg.encode('utf-8'))
@@ -73,7 +73,7 @@ def mail_stop(elapsed_time):
     body = f"No datareceived for {elapsed_time} seconds on "\
             + f"{datetime.datetime.now().strftime('%c')}"
     msg = f"To: {mail_to}\nFrom: {mail_from}\nSubject: {subject}\n{body}\n\n"
-    print(f"Sending mail to {mail_to}\nMessage:\n{msg}")
+    log.info(f"Sending mail to {mail_to}\nMessage:\n{msg}")
     process = subprocess.Popen(["/usr/sbin/ssmtp", mail_to],
                  stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     process.communicate(msg.encode('utf-8'))
