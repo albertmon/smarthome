@@ -24,11 +24,15 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 
 import sys
 import json
-import random
 import datetime
 import requests
 import subprocess
-import kodi
+
+from intentjson import IntentJSON
+from intentkodi import IntentKodi
+from rhasspy import Rhasspy
+from kodi import Kodi
+
 
 import logging
 log = logging.getLogger(__name__)
@@ -60,68 +64,6 @@ windnaam = {"N": "noord",
             "WNW": "west noord west",
             "NW": "noord west",
             "NNW": "noord noord west"}
-
-
-def speech(text):
-    global jsonevent
-    log.debug("speech:"+text)
-    jsonevent["speech"] = {"text": text}
-    log.debug(str(jsonevent["speech"]))
-
-
-def get_slot_value(slot_name,default=""):
-    if slot_name in jsonevent["slots"]:
-        return jsonevent["slots"][slot_name]
-    return default
-
-def get_raw_value_for(entity_name):
-    for entity in jsonevent["entities"]:
-        if entity["entity"] == entity_name:
-            return entity["raw_value"]
-    return ""
-
-def get_speech(text_to_speak):
-    is_var = False
-    new_speech = ""
-    for text in text_to_speak.split('.'):
-       if is_var:
-           new_speech = new_speech + get_raw_value_for(text)
-       else:
-           new_speech = new_speech + text
-       is_var = not is_var
-    return new_speech
-
-# =============================================================================
-# Conversations/Confirmation
-def do_post_rhasspy(url,data=""):
-    log.debug("Post data to rhasspy_url:"+data)
-    try:
-        res = requests.post(url, data=data)
-        if res.status_code != 200:
-            log.info("do_post(Url:[%s]\nResult:%s, text:[%s]"
-                     % (url, res.status_code, res.text))
-    except ConnectionError:
-        log.warning("ConnectionError for url [%s]" % (url))
-        return None
-
-    # log.debug("Post Result:"+res.text)
-    return(res)
-
-
-def rhasspy_speak(question):
-    do_post_rhasspy(rhasspy_url+"text-to-speech",question)
-
-def rhasspy_listen_for_intent():
-    res = do_post_rhasspy(rhasspy_url+"listen-for-command?nohass=true")
-    return res.json()
-
-
-def rhasspy_confirm(question):
-    rhasspy_speak(question)
-    res = rhasspy_listen_for_intent()
-    log.debug(f"Reply={str(res)}")
-    return("intent" in res and res["intent"]["name"] == "Confirm")
-
 
 def get_domoticz(command):
     url = domticz_url+command
@@ -223,93 +165,8 @@ def domoScene(idx):
     get_domoticz(command)
 
 
-def kodiplay_albums(albums):
-    log.debug("kodiplay_albums:gotAlbums:%s" % (str(albums)))
-    kodi.clear_playlist()
-    log.debug("albums[0]=%s" % (str(albums[0])))
-    for album in albums:
-        log.debug("album=%s" % (str(album)))
-
-        if len(albums) == 1:
-            speech("Ik ga het album %s van %s afspelen"
-                   % (album["label"], str(album["artist"])))
-
-        log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                  (album["albumid"], album["label"], str(album["artist"])))
-        kodi.add_album_to_playlist(album["albumid"])
-    kodi.restart_play()
-
-def kodiplay_songs(songs):
-    log.debug("kodiplay_songs:gotSongs:%s" % (str(songs)))
-    kodi.clear_playlist()
-    log.debug("songs[0]=%s" % (str(songs[0])))
-    for song in songs:
-        log.debug("song=%s" % (str(song)))
-
-        log.debug(f"Ik ga song %s (%s) van %s op playlist zetten" %
-                  (song["songid"], song["label"], song["displaycomposer"]))
-        kodi.add_song_to_playlist(song["songid"])
-    kodi.restart_play()
-
-
-def play_artist_album(artist="", album="", genre=""):
-    log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)"
-              % (artist, album, genre))
-    # albums = get_albums(artist, album)
-    albums = kodi.get_albums(artist=artist, album=album, genre=genre)
-
-    if artist is "":
-        artisttext = ""
-    else :
-        artisttext = f" van {artist}"
-
-    if album is "":
-        albumtext = " albums"
-    else :
-        albumtext = f" het album {album}"
-
-    if genre is not None and len(genre) >= 3:
-        genretekst = " in het genre " + genre
-    else:
-        genretekst = ""
-
-    confirmtext = f"moet ik {albumtext}{artist}{genretekst} afspelen ?"
-    if len(albums) == 0:
-        log.debug("play_artist_album:geen album gevonden")
-        if artist == "":
-            artist = "een wilekeurige artiest"
-        speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
-    elif rhasspy_confirm(confirmtext):
-        speech(f"ik ga {str(len(albums))} afspelen {genretekst}")
-        kodiplay_albums(albums)
-    else:
-        speech("okee dan niet")
-
-def play_tracks_klassiek(artist="", composer="", matchtitle=""):
-    log.debug("play_artist_album:(artist=%s, composer=%s, matchtitle==%s)"
-              % (artist, composer, matchtitle))
-    tracks = kodi.get_tracks_klassiek(artist, composer, matchtitle)
-        
-    if len(tracks) == 0:
-        log.debug("play_tracks_klassiek:geen tracks gevonden")
-        speech("ik kan geen treks "+matchtitle+" vinden")
-    elif rhasspy_confirm(f"moet ik muziek {matchtitle} afspelen ?"):
-        speech(f"ik ga de treks {matchtitle} afspelen")
-        kodiplay_songs(tracks)
-    else:
-        speech("okee dan niet")
-
-# def play_by_id(albumid):
-    # albums = kodi.get_albuminfo(albumid)
-    # if len(albums) == 0:
-        # log.debug("kodiplay:geen album gevonden")
-        # speech("ik kan geen album nummer "+str(albumid)+" vinden")
-    # else:
-        # kodiplay(albums)
-
 
 # =============================================================================
-
 
 def doConfirm():
     # Should not be called
@@ -317,17 +174,17 @@ def doConfirm():
 
 
 def doDeny():
-    speech("okee")
+    intentjson.set_speech("okee")
 
 
 def doGetTime():
     now = datetime.datetime.now()
-    speech("Het is nu  %s  uur en %d minuten " % (now.hour, now.minute))
+    intentjson.set_speech("Het is nu  %s  uur en %d minuten " % (now.hour, now.minute))
 
 
 def doTimer():
-    minutes = get_slot_value("minutes")
-    seconds = get_slot_value("seconds")
+    minutes = intentjson.get_slot_value("minutes")
+    seconds = intentjson.get_slot_value("seconds")
     command = PATH + 'timer.sh'
     seconds_to_sleep = minutes*60 + seconds
     log.debug("Call timer: [%s %d]" % (command, seconds_to_sleep))
@@ -340,7 +197,7 @@ def doTimer():
     log.debug("doTimer:std_out=[%s]" % (str(out)))
     if (len(out) > 0):
         log.error(out)
-        speech("Er is iets misgegaan met de timer. Ik ontving %s"
+        intentjson.set_speech("Er is iets misgegaan met de timer. Ik ontving %s"
                % (out))
     else:
         log.debug("minutes:%d, seconds:%d" % (minutes,seconds))
@@ -361,7 +218,7 @@ def doTimer():
             text_seconds = str(seconds) + " seconden"
 
         log.debug("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
-        speech("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
+        intentjson.set_speech("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
 
 
 def doGetTemperature():
@@ -370,7 +227,7 @@ def doGetTemperature():
     if res is not None:   # json result is Ok
         aantal_graden = str(res["Temp"])
         log.debug("Received: "+aantal_graden)
-        speech("Het is buiten %s graden celsius"
+        intentjson.set_speech("Het is buiten %s graden celsius"
                % (aantal_graden.replace(".", " komma ")))
 
 
@@ -381,10 +238,10 @@ def doGetWind():
         snelheidstr = res["Speed"]
         directionstr = res["DirectionStr"]
         log.debug("Received: "+snelheidstr+","+directionstr)
-        speech("Het waait %s meter per seconde uit %selijke richting"
+        intentjson.set_speech("Het waait %s meter per seconde uit %selijke richting"
                % (snelheidstr.replace(".", " komma "), windnaam[directionstr]))
     else:
-        speech("Geen antwoord van domoticz ontvangen")
+        intentjson.set_speech("Geen antwoord van domoticz ontvangen")
 
 
 def doGetElecticityUsage():
@@ -393,132 +250,51 @@ def doGetElecticityUsage():
     if res is not None:   # json result is Ok
         verbruikstr = res["Data"]
         log.debug("Received: "+verbruikstr)
-        speech("Het elektriciteits verbruik is "+verbruikstr)
+        intentjson.set_speech("Het elektriciteits verbruik is "+verbruikstr)
     else:
-        speech("Geen antwoord van domoticz ontvangen")
+        intentjson.set_speech("Geen antwoord van domoticz ontvangen")
 
 def doDomo():
-    name = get_slot_value("name")
-    state = get_slot_value("state")
-    idx = get_slot_value("idx")
-    speech = get_slot_value("speech")
+    name = intentjson.get_slot_value("name")
+    state = intentjson.get_slot_value("state")
+    idx = intentjson.get_slot_value("idx")
+    intentjson.set_speech = intentjson.get_slot_value("speech")
 
 
 def doSceneAllesUit():
     domoScene("1")
-    speech("welterusten")
+    intentjson.set_speech("welterusten")
 
 
 def doSceneBezoek():
     domoScene("2")
-    speech("hartelijk welkom bij Albert")
+    intentjson.set_speech("hartelijk welkom bij Albert")
 
 
 def doSceneTVKijken():
     domoScene("3")
-    speech("veel plezier")
+    intentjson.set_speech("veel plezier")
 
 
 def doDimmer():
-    idx = get_slot_value("idx", default=-1)
-    state = get_slot_value("state",default="Off")
-    level = get_slot_value("level", default=100)
+    idx = intentjson.get_slot_value("idx", default=-1)
+    state = intentjson.get_slot_value("state",default="Off")
+    level = intentjson.get_slot_value("level", default=100)
     domoDimmer(idx, state, level)
 
 
 def doSwitch():
-    idx = get_slot_value("idx")
-    state = get_slot_value("state")
+    idx = intentjson.get_slot_value("idx")
+    state = intentjson.get_slot_value("state")
     domoSwitch(idx, state)
 
 
-def doMuziekKlassiek():
-    '''
-    [MuziekKlassiek]
-    (speel:) (pianomuziek:piano|vioolmuziek:viool|cellomuziek:cello|pianoconcert|vioolconcert|celloconcert|nocturne|toccata|fuga|concert|suite){match} [van ($composers){composer}] [door ($artists){artist}]
-    (speel:)  [(de:)|(het:)] (eerste:1|tweede:2|derde:no3|vierde:4|vijfde:5|zesde:6|zevende:7|achtste:8|negende:9){selectienum} (piano concert|viool concert|cello concert|brandenburger concert|symphonie){selectie} [van ($composers){composer}]
-    Speel (symphonie [nummer:no.  (1..9) ] ){match}  [van ($composers){composer}]
-    Speel [de|het] ($tracks){track}   [van ($composers){composer}]
-    '''
-    log.debug(f"doMuziekKlassiek")
-    track = get_slot_value("track")
-    log.debug(f"doMuziekKlassiek: track=>{track}<")
-    selectie = get_slot_value("selectie")
-    log.debug(f"doMuziekKlassiek: selectie=>{selectie}<")
-    artist = get_slot_value("artist")
-    composer = get_slot_value("composer")
-    log.debug(f"play_tracks_klassiek(artist={artist}, composer={composer}, matchtitle={track}{selectie}")
-    play_tracks_klassiek(artist=artist, composer=composer, matchtitle=track+selectie)
-
-def doMuziekVanArtist():
-    artist = get_slot_value("artist")
-    play_artist_album(artist=artist)
-
-
-def doMuziekVanAlbum():
-    album = get_slot_value("album")
-    play_artist_album(album=album)
-
-
-def doMuziekVanAlbumArtist():
-    artist = get_slot_value("artist")
-    album = get_slot_value("album")
-    play_artist_album(artist=artist, album=album)
-
-
-def doMuziekVanGenre():
-    genre = get_slot_value("genre")
-    play_artist_album(genre=genre)
-
-
-# def doMuziekAlbumid():
-    # # speel album nummer  (0..500){albumid}
-    # albumid = get_slot_value("albumid")
-    # play_by_id(albumid)
-
-
-def doMuziekAlbumlijstVanArtist():
-    # welke albums (zijn er|hebben we) van ($artists){artist}
-    speech("Ik kan nog geen lijst van albums geven")
-
-
-def doMuziekPauseResume():
-    kodi.pause_resume()
-
-
-def doMuziekVolume():
-    volume = get_slot_value("volume")
-    kodi.volume(volume)
-
-
-def doMuziekPrevious():
-    kodi.previous_track()
-
-
-def doMuziekNext():
-    kodi.next_track()
-
-def doMuziekWhatsPlaying():
-    answer = kodi.get_whats_playing()
-    log.debug(str(answer))
-    if 'result' in answer and 'item' in answer['result']:
-        item = answer['result']['item']
-        album = item["album"]
-        artist = item["artist"]
-        title = item["title"]
-        # genre = item["genre"]
-        speech("Dit is het nummer, %s, van het album, %s, van, %s" 
-               % (title, album, artist))
-    else:
-        speech("Ik weet het niet, sorry")
-
-
 def doDuckDuckGo():
-    artist = get_slot_value("artist")
-    album = get_slot_value("album")
-    genre = get_slot_value("genre")
-    answer = get_duckduckgo(artist, album, genre)
-    speech(answer)
+    artist = intentjson.get_slot_value("artist")
+    album = intentjson.get_slot_value("album")
+    genre = intentjson.get_slot_value("genre")
+    answer = intentjson.get_duckduckgo(artist, album, genre)
+    intentjson.set_speech(answer)
 
 
 # ============================================================================
@@ -533,21 +309,31 @@ if __name__ == '__main__':
 
     # get json from stdin and load into python dict
     log.debug("Intent received")
-    jsonevent = json.loads(sys.stdin.read())
-    log.debug("JSON:"+json.dumps(jsonevent))
-
-    intent = jsonevent["intent"]["name"]
+    inputjson = json.loads(sys.stdin.read())
+    log.debug("JSON:"+json.dumps(inputjson))
+    intentjson = IntentJSON(inputjson)
+    intent = intentjson.get_intent()
     log.info("Intent:"+intent)
 
-    # kodi = Kodi(kodi_url, loglevel=-1, logfile="xxx.log")
-    kodi = kodi.Kodi(kodi_url)
 
     # Call Intent handler do[Intent]():
-    text_to_speak = get_slot_value("speech")
-    speech(get_speech(text_to_speak))
-    eval("do"+intent)()
+    text_to_speak = intentjson.get_slot_value("speech")
+    intentjson.set_speech(intentjson.get_speech(text_to_speak))
+    try:
+        eval("do"+intent)()
+    except NameError:
+        try:
+            # kodi = Kodi(kodi_url, loglevel=-1, logfile="xxx.log")
+            kodi = Kodi(kodi_url)
+            rhasspy = Rhasspy(rhasspy_url)
+            log.debug(f"Calling IntentKodi")
+            intentkodi = IntentKodi(intentjson, kodi, rhasspy)
+            log.debug(f"Calling intentkodi.do{intent}")
+            eval("intentkodi.do"+intent)()
+        except NameError:
+            intentjson.set_speech(f"ik kan geen intent {intent} vinden")
 
     # convert dict to json and print to stdout
-    returnJson = json.dumps(jsonevent)
+    returnJson = intentjson.get_json_as_string()
     log.debug("JSON:"+returnJson)
     print(returnJson)

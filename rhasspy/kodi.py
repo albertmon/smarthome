@@ -166,7 +166,7 @@ class Kodi:
                     # matched_tracks.append(track)
                     # print("Matched track:"+str(track))
             # tracks["result"]["songs"] = matched_tracks
-        print(f"Na matchtitle ({matchtitle}):"+str(tracks)+"\n========================\n")
+        log.debug(f"Na matchtitle ({matchtitle}):"+str(tracks)+"\n========================\n")
         return tracks
 
     def add_tracks_to_playlist(self, artist, composer, matchtitle):
