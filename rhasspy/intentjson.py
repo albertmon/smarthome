@@ -62,7 +62,7 @@ class IntentJSON:
         new_speech = ""
         for text in text_to_speak.split('.'):
            if is_var:
-               new_speech = new_speech + get_raw_value_for(text)
+               new_speech = new_speech + self.get_raw_value_for(text)
            else:
                new_speech = new_speech + text
            is_var = not is_var

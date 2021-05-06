@@ -140,23 +140,21 @@ def get_duckduckgo(artist="", album="", genre=""):
 
 
 def domoDimmer(idx, state, level=-1):
-    log.debug("domoDimmer(%d, %s, %d)" % (idx, state, level))
+    log.debug(f"domoDimmer({idx}, {state}, {level})")
     if level >= 0:
         (maxDimLevel,name) = domo_get_info(idx)
-        log.debug("(maxDimLevel=%d,name=%s)"\
-                  % (maxDimLevel,name))
+        log.debug(f"(maxDimLevel={maxDimLevel},name={name})")
         level = int((level * maxDimLevel)/100 + 0.5)
         switchcmd = "Set Level&level=%d" % (level)
     else:
         switchcmd = state
-    command = "type=command&param=switchlight&idx=%d&switchcmd=%s"\
-        % (idx, switchcmd)
+    command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
     get_domoticz(command)
 
 
 def domoSwitch(idx, state):
-    command = "type=command&param=switchlight&idx=%s&switchcmd=%s"\
-        % (idx, state)
+    command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
+    log.debug(f"domoSwitch:command={command}")
     get_domoticz(command)
 
 
@@ -286,6 +284,7 @@ def doDimmer():
 def doSwitch():
     idx = intentjson.get_slot_value("idx")
     state = intentjson.get_slot_value("state")
+    log.debug(f"doSwitch:idx={idx},state={state}")
     domoSwitch(idx, state)
 
 
