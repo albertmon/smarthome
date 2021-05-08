@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 PATH = "/profiles/nl/handler/"
 
 duckduckgo_url = 'https://api.duckduckgo.com/?'
-domticz_url = "http://192.168.0.3:8080/json.htm?"
+domoticz_url = "http://192.168.0.3:8080/json.htm?"
 kodi_url = "http://192.168.0.5:8080/jsonrpc"
 rhasspy_url = "http://192.168.0.3:12101/api/"
 
@@ -66,13 +66,12 @@ windnaam = {"N": "noord",
             "NNW": "noord noord west"}
 
 def get_domoticz(command):
-    url = domticz_url+command
+    url = domoticz_url+command
     log.debug("Url:"+url)
     try:
         res = requests.get(url)
         if res.status_code != 200:
-            log.info("Url:["+url+"]\nResult:" + res.status_code
-                     + ", text:"+res.text)
+            log.info(f"Url:[{url}\nResult:{res.status_code}, text:{res.text}")
             return None
     except ConnectionError:
         timestamp = datetime.datetime.now().strftime("%Y%m%d %H:%M")
@@ -87,68 +86,65 @@ def get_domoticz(command):
 
     return(None)
 
-def domo_get_info(idx):
-      # "Level": 80,
-      # "LevelInt": 12,
-      # "MaxDimLevel": 15,
-      # "Name": "Tafellicht",
-
-    command = "type=devices&rid=%d" % (idx)
-    res_json = get_domoticz(command)
-    log.debug("Domotcz result: "+str(res_json))
-    if "MaxDimLevel" in res_json:
-        maxDimLevel = int(res_json["MaxDimLevel"])
-    else:
-        maxDimLevel = 100
-    if "Name" in res_json:
-        name = res_json["Name"]
-    else:
-        name = "unknown"
-    return (maxDimLevel, name)
-
 def get_duckduckgo(artist="", album="", genre=""):
     search = ""
     if genre != "":
         search = "genre "+genre
     else:
         if album != "":
-            search = "album %s %s" % (album, artist)
+            search = f"album {album} {artist}"
         else:
             search = artist
 
     params = { 'q': search, 'kad': 'nl_NL', 'kl': 'nl-nl', 'format': 'json' }
 
-    log.debug("duckduckgo("+search+")")
+    log.debug(f"duckduckgo({search})")
     try:
         res = requests.get(duckduckgo_url, params=params)
         if res.status_code != 200:
-            log.info("Url:["+duckduckgo_url+"]\nResult:" + res.status_code
-                     + ", text:"+res.text)
+            log.info(f"Url:[{duckduckgo_url}]\nResult:{res.status_code}, text:{res.text}")
     except ConnectionError:
-        log.error("ConnectionError for url "+duckduckgo_url)
+        log.error(f"ConnectionError for url {duckduckgo_url}")
 
     log.debug(str(res.text))
     res_json = json.loads(res.text)
 
     if res_json["AbstractText"] is None or res_json["AbstractText"] == "":
-        return("Geen informatie over %s gevonden" % (search))
+        return(f"Geen informatie over {search} gevonden")
     else:
         return(res_json["AbstractText"])
 
 
 # ================  Intent handlers =================================
 
+def domoInfo(idx, field_name, defaultValue=""):
+      # "Level": 80,
+      # "LevelInt": 12,
+      # "MaxDimLevel": 15,
+      # "Name": "Tafellicht",
+
+    res_json = get_domoticz(f"type=devices&rid={idx}")
+    log.debug("Domotcz result: "+str(res_json))
+    if field_name in res_json:
+        value = res_json[field_name]
+    else:
+        value = defaultValue
+    if "Name" in res_json:
+        domo_name = res_json["Name"]
+    else:
+        domo_name = ""
+    return (value, domo_name)
 
 def domoDimmer(idx, state, level=-1):
     log.debug(f"domoDimmer({idx}, {state}, {level})")
     if level >= 0:
-        (maxDimLevel,name) = domo_get_info(idx)
+        (maxDimLevel,name) = domoInfo(idx,"MaxDimLevel","100")
         log.debug(f"(maxDimLevel={maxDimLevel},name={name})")
-        level = int((level * maxDimLevel)/100 + 0.5)
+        level = int((level * int(maxDimLevel))/100 + 0.5)
         switchcmd = "Set Level&level=%d" % (level)
     else:
         switchcmd = state
-    command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
+    command = f"type=command&param=switchlight&idx={idx}&switchcmd={switchcmd}"
     get_domoticz(command)
 
 
@@ -159,15 +155,15 @@ def domoSwitch(idx, state):
 
 
 def domoScene(idx):
-    command = "type=command&param=switchscene&idx=%s&switchcmd=On" % (idx)
+    command = f"type=command&param=switchscene&idx={idx}&switchcmd=On"
     get_domoticz(command)
-
 
 
 # =============================================================================
 
 def doConfirm():
     # Should not be called
+    # Used by Rhasspy conversation
     pass
 
 
@@ -218,17 +214,6 @@ def doTimer():
         log.debug("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
         intentjson.set_speech("ik heb een taimer gezet op %s %s %s" % (text_minutes, text_and, text_seconds))
 
-
-def doGetTemperature():
-    res = get_domoticz("type=devices&rid="+temperatuur_idx)
-
-    if res is not None:   # json result is Ok
-        aantal_graden = str(res["Temp"])
-        log.debug("Received: "+aantal_graden)
-        intentjson.set_speech("Het is buiten %s graden celsius"
-               % (aantal_graden.replace(".", " komma ")))
-
-
 def doGetWind():
     res = get_domoticz("type=devices&rid="+wind_idx)
 
@@ -242,46 +227,33 @@ def doGetWind():
         intentjson.set_speech("Geen antwoord van domoticz ontvangen")
 
 
-def doGetElecticityUsage():
-    res = get_domoticz("type=devices&rid="+electricity_idx)
+def doDomoInfo():
+    field_name = intentjson.get_slot_value("name")
+    idx = intentjson.get_slot_value("idx")
+    resultString = intentjson.get_slot_value("speech")
+    resultMatch = intentjson.get_slot_value("result","RESULT")
+    
+    (value, domo_name) = domoInfo(idx, field_name)
+    returnValue = str(value).replace("."," komma ")
+    intentjson.set_speech(resultString.replace(resultMatch,returnValue))
 
-    if res is not None:   # json result is Ok
-        verbruikstr = res["Data"]
-        log.debug("Received: "+verbruikstr)
-        intentjson.set_speech("Het elektriciteits verbruik is "+verbruikstr)
-    else:
-        intentjson.set_speech("Geen antwoord van domoticz ontvangen")
-
-def doDomo():
+def doDomoScene():
     name = intentjson.get_slot_value("name")
     state = intentjson.get_slot_value("state")
     idx = intentjson.get_slot_value("idx")
-    intentjson.set_speech = intentjson.get_slot_value("speech")
+    intentjson.set_speech(intentjson.get_slot_value("speech"))
+    command = f"type=command&param=switchscene&idx={idx}&switchcmd=On"
+    get_domoticz(command)
 
 
-def doSceneAllesUit():
-    domoScene("1")
-    intentjson.set_speech("welterusten")
-
-
-def doSceneBezoek():
-    domoScene("2")
-    intentjson.set_speech("hartelijk welkom bij Albert")
-
-
-def doSceneTVKijken():
-    domoScene("3")
-    intentjson.set_speech("veel plezier")
-
-
-def doDimmer():
+def doDomoDimmer():
     idx = intentjson.get_slot_value("idx", default=-1)
     state = intentjson.get_slot_value("state",default="Off")
     level = intentjson.get_slot_value("level", default=100)
     domoDimmer(idx, state, level)
 
 
-def doSwitch():
+def doDomoSwitch():
     idx = intentjson.get_slot_value("idx")
     state = intentjson.get_slot_value("state")
     log.debug(f"doSwitch:idx={idx},state={state}")
