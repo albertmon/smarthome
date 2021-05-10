@@ -25,16 +25,16 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 import json
 import requests
 import logging
-log = logging.getLogger(__name__)
+import intentconfig
 
-rhasspy_url = "http://192.168.0.3:12101/api/"
+log = logging.getLogger(__name__)
 
 # =============================================================================
 # Conversations/Confirmation using rhasspy api
 # =============================================================================
 class Rhasspy:
-    def __init__(self, url="http://192.168.0.3:12101/api/"):
-        self.url = url
+    def __init__(self, url):
+        self.url = url+"/api/"
 
     def do_post_rhasspy(self, url, data=""):
         log.debug("Post data to rhasspy_url:"+data)

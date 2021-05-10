@@ -30,11 +30,11 @@ log = logging.getLogger(__name__)
 
 class Kodi:
     def __init__(self, url, path=""):
-        self.url = url
+        self.url = url+"/jsonrpc"
         self.path = path
 
     def do_post(self, data):
-        log.debug("Post data:"+data)
+        log.debug(f"Post data(url={self.url}:{data}")
         try:
             res = requests.post(self.url, data=data,
                                 headers={"Content-Type": "application/json"})
@@ -42,7 +42,7 @@ class Kodi:
                 log.info("do_post(Url:[%s]\nResult:%s, text:[%s]"
                          % (url, res.status_code, res.text))
         except ConnectionError:
-            log.warning("ConnectionError for url [%s]" % (url))
+            log.warning(f"ConnectionError for url [{url}]")
             return None
 
         log.debug("Post Result:"+res.text)
