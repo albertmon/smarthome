@@ -2,21 +2,26 @@
 
 config = {
     "urls" : 
-        { "Rhasspy" : "http://192.168.0.3:12101"
+        { "Rhasspy" : "http://localhost:12101"
         , "DuckDuckGo" : "https://api.duckduckgo.com"
-        , "Domo" : "http://192.168.0.3:8080"
-        , "Kodi" : "http://192.168.0.5:8080"
+        , "Domo" : "http://domopi:8080"
+        , "Kodi" : "http://kodipi:8080"
+        , "SmartCity" : "https://api.smartcitizen.me"
         }
     }
-    
-from intentdomo import IntentDomo
-from intentkodi import IntentKodi
 
 def get_url(key):
     return config["urls"][key]
 
 def get_instances(json):
     instances = {}
-    instances["Domo"] = IntentDomo(json)
-    instances["Kodi"] = IntentKodi(json)
+    if "Domo" in config["urls"]:
+        from intentdomo import IntentDomo
+        instances["Domo"] = IntentDomo(json)
+    if "Kodi" in config["urls"]:
+        from intentkodi import IntentKodi
+        instances["Kodi"] = IntentKodi(json)
+    if "SmartCity" in config["urls"]:
+        from intentsmartcity import IntentSmartCity
+        instances["SmartCity"] = IntentSmartCity(json)
     return instances

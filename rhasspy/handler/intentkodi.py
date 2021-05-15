@@ -29,6 +29,47 @@ import logging
 log = logging.getLogger(__name__)
 
 class IntentKodi:
+    '''
+    Class IntentKodi implements intents for the Kodi 
+    All intents accept the parameter:
+        speech (optional, default depending intent)
+            - text to speak after executing the intent
+
+    Implemented Intents are:
+    KodiClassical - Play classical genre music depending on parameters
+        Parameters (all optional):
+            artist - Select track only if artist matches
+            composer - Select track only if composer matches
+            title - Select track only if track-title contains title
+            selection - Select track only if track-title contains selection
+    KodiAlbums - Play selected albums
+        Parameters (all optional):artist="", album="", genre=""
+            artist - Select album only if album-artists contain artist
+            album - Select album only if album-title matches
+            genre - Select album only if album-genres contains genre
+    KodiSongs - Play selected songs/tracks
+        Parameters (all optional):
+            artist - Select track only if artist matches
+            composer - Select track only if composer matches
+            title - Select track only if track-title contains title
+            genre - Select track only if genre matches
+    KodiPauseResume - Pause or Resume playing
+        Parameters: None
+    KodiVolume - Set the volume to a percentage (0-100(
+        Parameters:
+            volume (required) - Volume level between 0 and 100 (percentage)
+    KodiPrevious - Goto the previous song of the playlist
+        Parameters: None
+    KodiNext - Goto the next song of the playlist
+        Parameters: None
+    KodiWhatsPlaying - Speak the songname, akbumname and artist that is currently playing
+        Parameters: None
+
+(speel:) (pianomuziek:piano|vioolmuziek:viool|cellomuziek:cello|pianoconcert|vioolconcert|celloconcert|nocturne|toccata|fuga:fug|concert|suite|cantates:cantate|alles:){selection} van ($composers){composer} [door ($artists){artist}]
+(speel:) [(de:)|(het:)] (eerste:1|tweede:2|derde:no3|vierde:4|vijfde:5|zesde:6|zevende:7|achtste:8|negende:9){selection} (piano concert|viool concert|cello concert|brandenburger concert|symphonie){title} [van ($composers){composer}]
+Speel (symphonie, [(nummer:)(1..9)]){selection}  [van ($composers){composer}]
+Speel [de|het] ($titles){title}   [van ($composers){composer}]
+    '''
     def __init__(self, intentjson):
         self.intentjson = intentjson
         kodi_url = intentconfig.get_url("Kodi")
@@ -37,58 +78,51 @@ class IntentKodi:
         self.rhasspy = Rhasspy(rhasspy_url)
 
     def kodiplay_albums(self, albums):
-        log.debug("kodiplay_albums:gotAlbums:%s" % (str(albums)))
+        log.debug(f"kodiplay_albums:albums:{albums}")
         self.kodi.clear_playlist()
-        log.debug("albums[0]=%s" % (str(albums[0])))
         for album in albums:
-            log.debug("album=%s" % (str(album)))
+            log.debug(f"album={album}")
 
             if len(albums) == 1:
-                intentjson.set_speech("Ik ga het album %s van %s afspelen"
-                       % (album["label"], str(album["artist"])))
+                intentjson.set_speech(f"Ik ga het album {album['label']}"\
+                    + f"van {album['artist']} afspelen")
 
-            log.debug("Ik ga het album %s (%s) van %s op playlist zetten" %
-                      (album["albumid"], album["label"], str(album["artist"])))
+            log.debug("Put on playlist album {album}")
             self.kodi.add_album_to_playlist(album["albumid"])
         self.kodi.restart_play()
 
     def kodiplay_songs(self, songs):
-        log.debug("kodiplay_songs:gotSongs:%s" % (str(songs)))
+        log.debug(f"kodiplay_songs:gotSongs:{songs}")
         self.kodi.clear_playlist()
-        log.debug("songs[0]=%s" % (str(songs[0])))
         for song in songs:
-            log.debug("song=%s" % (str(song)))
-
-            log.debug(f"Ik ga song %s (%s) van %s op playlist zetten" %
-                      (song["songid"], song["label"], song["displaycomposer"]))
+            log.debug(f"On playlist: {song['songid']},label={song['label']}" \
+                + f"van {song['displaycomposer']}")
             self.kodi.add_song_to_playlist(song["songid"])
         self.kodi.restart_play()
 
-
-    def play_artist_album(self, artist="", album="", genre=""):
-        log.debug("play_artist_album:(artist=%s, album=%s, genre=%s)"
-                  % (artist, album, genre))
+    def play_albums(self, artist="", album="", genre=""):
+        log.debug(f"play_albums:(artist={artist}, album={album}, genre={genre})")
         # albums = get_albums(artist, album)
         albums = self.kodi.get_albums(artist=artist, album=album, genre=genre)
 
         if artist is "":
             artisttext = ""
         else :
-            artisttext = f" van {artist}"
+            artisttext = f"van {artist}"
 
         if album is "":
-            albumtext = " albums"
+            albumtext = "albums"
         else :
-            albumtext = f" het album {album}"
+            albumtext = f"het album {album}"
 
         if genre is not None and len(genre) >= 3:
-            genretekst = " in het genre " + genre
+            genretekst = f"in het genre {genre}"
         else:
             genretekst = ""
 
-        confirmtext = f"moet ik {albumtext}{artist}{genretekst} afspelen ?"
+        confirmtext = f"moet ik {albumtext} {artist} {genretekst} afspelen ?"
         if len(albums) == 0:
-            log.debug("play_artist_album:geen album gevonden")
+            log.debug("play_albums:geen album gevonden")
             if artist == "":
                 artist = "een wilekeurige artiest"
             self.intentjson.set_speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
@@ -97,93 +131,54 @@ class IntentKodi:
             self.kodiplay_albums(albums)
         else:
             self.intentjson.set_speech("okee dan niet")
+            
+    def play_songs(self, artist="", composer="", title="", selection="", genre=""):
+        log.debug(f"play_songs:(artist={artist}, composer={composer}, title=={title},"\
+            + f"selection={selection}, genre={genre})")
+        songs = self.kodi.get_songs(artist, composer, title, selection, genre)
 
-    def play_tracks_classical(self, artist="", composer="", matchtitle=""):
-        log.debug("play_tracks_classical:(artist=%s, composer=%s, matchtitle==%s)"
-                  % (artist, composer, matchtitle))
-        tracks = self.kodi.get_tracks_classical(artist, composer, matchtitle)
-
-        if len(tracks) == 0:
-            log.debug("play_tracks_classical:geen tracks gevonden")
-            self.intentjson.set_speech("ik kan geen treks "+matchtitle+" vinden")
-        elif self.rhasspy.rhasspy_confirm(f"moet ik muziek {matchtitle} afspelen ?"):
-            self.intentjson.set_speech(f"ik ga de treks {matchtitle} afspelen")
-            self.kodiplay_songs(tracks)
+        if len(songs) == 0:
+            log.debug("play_songs:geen muziek gevonden")
+            self.intentjson.set_speech(f"ik kan geen muziek {title} vinden")
+        elif self.rhasspy.rhasspy_confirm(f"moet ik muziek {title} afspelen ?"):
+            self.intentjson.set_speech(f"ik ga de muziek {title} afspelen")
+            self.kodiplay_songs(songs)
         else:
             self.intentjson.set_speech("okee dan niet")
-
-    # def play_by_id(albumid):
-        # albums = kodi.get_albuminfo(albumid)
-        # if len(albums) == 0:
-            # log.debug("kodiplay:geen album gevonden")
-            # intentjson.set_speech("ik kan geen album nummer "+str(albumid)+" vinden")
-        # else:
-            # kodiplay(albums)
 
     # =================================================================================
 
     def doKodiClassical(self):
-        '''
-        [KodiClassical]
-        (speel:) (pianomuziek:piano|vioolmuziek:viool|cellomuziek:cello|pianoconcert|vioolconcert|celloconcert|nocturne|toccata|fuga|concert|suite){match} [van ($composers){composer}] [door ($artists){artist}]
-        (speel:)  [(de:)|(het:)] (eerste:1|tweede:2|derde:no3|vierde:4|vijfde:5|zesde:6|zevende:7|achtste:8|negende:9){selectienum} (piano concert|viool concert|cello concert|brandenburger concert|symphonie){selectie} [van ($composers){composer}]
-        Speel (symphonie [nummer:no.  (1..9) ] ){match}  [van ($composers){composer}]
-        Speel [de|het] ($tracks){track}   [van ($composers){composer}]
-        '''
         log.debug(f"doKodiClassical")
-        track = self.intentjson.get_slot_value("track")
-        log.debug(f"doKodiClassical: track=>{track}<")
-        selectie = self.intentjson.get_slot_value("selectie")
-        log.debug(f"doKodiClassical: selectie=>{selectie}<")
+        title = self.intentjson.get_slot_value("title")
+        selection = self.intentjson.get_slot_value("selection")
         artist = self.intentjson.get_slot_value("artist")
         composer = self.intentjson.get_slot_value("composer")
-        log.debug(f"play_tracks_classical(artist={artist}, composer={composer}, matchtitle={track}{selectie}")
-        self.play_tracks_classical(artist=artist, composer=composer, matchtitle=track+selectie)
+        log.debug(f"play_songs(artist={artist}, composer={composer}, title={title}, selection={selection}")
+        self.play_songs(artist=artist, composer=composer, title=title, selection=selection, genre="Klassiek")
 
-    def doKodiArtist(self):
+    def doKodiSongs(self):
         artist = self.intentjson.get_slot_value("artist")
-        self.play_artist_album(artist=artist)
-
-
-    def doKodiAlbum(self):
-        album = self.intentjson.get_slot_value("album")
-        self.play_artist_album(album=album)
-
-
-    def doKodiAlbumArtist(self):
-        artist = self.intentjson.get_slot_value("artist")
-        album = self.intentjson.get_slot_value("album")
-        self.play_artist_album(artist=artist, album=album)
-
-
-    def doKodiGenre(self):
+        composer = self.intentjson.get_slot_value("composer")
         genre = self.intentjson.get_slot_value("genre")
-        play_artist_album(genre=genre)
+        title = self.intentjson.get_slot_value("title")
+        self.play_songs(artist=artist, composer=composer, title=title, genre=genre)
 
-
-    # def doKodiAlbumid():
-        # # speel album nummer  (0..500){albumid}
-        # albumid = self.intentjson.get_slot_value("albumid")
-        # play_by_id(albumid)
-
-
-    def doKodiAlbumlistArtist(self):
-        # welke albums (zijn er|hebben we) van ($artists){artist}
-        self.intentjson.set_speech("Ik kan nog geen lijst van albums geven")
-
+    def doKodiAlbums(self):
+        artist = self.intentjson.get_slot_value("artist")
+        album = self.intentjson.get_slot_value("album")
+        genre = self.intentjson.get_slot_value("genre")
+        self.play_albums(artist=artist, album=album, genre=genre)
 
     def doKodiPauseResume(self):
         self.kodi.pause_resume()
-
 
     def doKodiVolume(self):
         volume = self.intentjson.get_slot_value("volume")
         self.kodi.volume(volume)
 
-
     def doKodiPrevious(self):
         self.kodi.previous_track()
-
 
     def doKodiNext(self):
         self.kodi.next_track()
@@ -197,8 +192,8 @@ class IntentKodi:
             artist = item["artist"]
             title = item["title"]
             # genre = item["genre"]
-            self.intentjson.set_speech("Dit is het nummer, %s, van het album, %s, van, %s"
-                   % (title, album, artist))
+            self.intentjson.set_speech(f"Dit is het nummer, {title},"\
+                + f"van het album, {album}, van, {artist}")
         else:
             self.intentjson.set_speech("Ik weet het niet, sorry")
 

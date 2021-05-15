@@ -40,6 +40,55 @@ log = logging.getLogger(__name__)
 PATH = "/profiles/nl/handler/"
 
 class IntentDomo:
+    '''
+    Class IntentDomo implements intents for Domoticz
+    All intents accept the parameter:
+        speech (optional, default depending intent)
+            - text to speak after executing the intent
+
+    Implemented Intents are:
+    DomoInfo - Return spoken information from a sensor
+        Parameters:
+            idx (required)- Device idx from Domoticz
+            name (optional, Default "Data")
+                - Name of the field of the sensordata that must be retrieved 
+            speech - text to speak with the result, see parameter result
+            result (optional, default RESULT)
+                - string to replace in speech with result
+    DomoScene - Start a Scene
+        Parameter:
+            idx (required)- Scene idx from Domoticz
+    DomoDimmer - Set dimmer to a certain percentage level (0-100%)
+        Parameters:
+            idx (required)- Device idx from Domoticz
+            level (optional, default 100%)
+                - light level to set to, must be integer between 0 and 100
+    DomoSwitch - Put something On or Off
+        Parameters:
+            idx (required)- Device idx from Domoticz
+            state (required) - Must contain 'On' or 'Off'
+                You can use (..:On|..:Off){state} to get the right value in sentences.ini
+    DomoGetWind - Special info intent to hear the wind speed and direction
+        Parameter:
+            idx (required)- Device idx from Domoticz
+    '''
+    wind = {"N": "noord",
+            "NNE": "noord noord oost",
+            "NE": "noord oost",
+            "ENE": "oost noord oost",
+            "E": "oost",
+            "ESE": "oost zuid oost",
+            "SE": "zuid oost",
+            "SSE": "zuid zuid oost",
+            "S": "zuid",
+            "SSW": "zuid zuid west",
+            "SW": "zuid west",
+            "WSW": "west zuid west",
+            "W": "west",
+            "WNW": "west noord west",
+            "NW": "noord west",
+            "NNW": "noord noord west"}
+
     def __init__(self, intentjson):
         domoticz_url = intentconfig.get_url("Domo")+"/json.htm?"
         self.domoticz_url = domoticz_url
@@ -57,7 +106,7 @@ class IntentDomo:
             log.warning(f"ConnectionError for {url}")
             return None
 
-        log.debug(str(res.text))
+        log.debug(str(res))
         res_json = json.loads(res.text)
 
         if "result" in res_json:
@@ -65,7 +114,7 @@ class IntentDomo:
 
         return(None)
         
-    def domoInfo(self, idx, field_name, defaultValue=""):
+    def domoInfo(self, idx, field_name="Data", defaultValue=""):
         res_json = self.get_domoticz(f"type=devices&rid={idx}")
         log.debug("Domoticz result: "+str(res_json))
         if field_name in res_json:
@@ -76,7 +125,7 @@ class IntentDomo:
 
     def doDomoInfo(self):
         # get slots
-        field_name = self.intentjson.get_slot_value("name")
+        field_name = self.intentjson.get_slot_value("name", "Data")
         idx = self.intentjson.get_slot_value("idx")
         resultString = self.intentjson.get_slot_value("speech")
         resultMatch = self.intentjson.get_slot_value("result","RESULT")
@@ -90,8 +139,6 @@ class IntentDomo:
 
     def doDomoScene(self):
         # get slots
-        name = self.intentjson.get_slot_value("name")
-        state = self.intentjson.get_slot_value("state")
         idx = self.intentjson.get_slot_value("idx")
 
         # format speech result
@@ -100,7 +147,6 @@ class IntentDomo:
         # perform action
         command = f"type=command&param=switchscene&idx={idx}&switchcmd=On"
         self.get_domoticz(command)
-
 
     def doDomoDimmer(self):
         # get slots
@@ -120,8 +166,6 @@ class IntentDomo:
         command = f"type=command&param=switchlight&idx={idx}&switchcmd={switchcmd}"
         self.get_domoticz(command)
 
-
-
     def doDomoSwitch(self):
         # get slots
         idx = self.intentjson.get_slot_value("idx")
@@ -132,4 +176,23 @@ class IntentDomo:
         command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
         log.debug(f"domoSwitch:command={command}")
         self.get_domoticz(command)
+
+    def doDomoGetWind(self):
+        idx = self.intentjson.get_slot_value("idx")
+        log.debug(f"doDomoGetWind:idx={idx}")
+
+        # perform action
+        command = f"type=devices&rid={idx}"
+        log.debug(f"doDomoGetWind:command={command}")
+        res_json = self.get_domoticz(command)
+
+        if "Speed" and "DirectionStr" in res_json:   # json result is Ok
+            speed = res_json["Speed"]
+            direction = res_json["DirectionStr"]
+            log.debug(f"Received: {speed},{direction}")
+            speed = speed.replace(".", " komma ")
+            self.intentjson.set_speech(f"Het waait {speed} meter per seconde uit {IntentDomo.wind[direction]}elijke richting")
+        else:
+            self.intentjson.set_speech("Geen antwoord van domoticz ontvangen")
+
 

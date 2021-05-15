@@ -46,23 +46,6 @@ duckduckgo_url = 'https://api.duckduckgo.com/?'
 
 wind_idx = "20"
 
-windnaam = {"N": "noord",
-            "NNE": "noord noord oost",
-            "NE": "noord oost",
-            "ENE": "oost noord oost",
-            "E": "oost",
-            "ESE": "oost zuid oost",
-            "SE": "zuid oost",
-            "SSE": "zuid zuid oost",
-            "S": "zuid",
-            "SSW": "zuid zuid west",
-            "SW": "zuid west",
-            "WSW": "west zuid west",
-            "W": "west",
-            "WNW": "west noord west",
-            "NW": "noord west",
-            "NNW": "noord noord west"}
-
 def get_duckduckgo(artist="", album="", genre=""):
     search = ""
     if genre != "":
@@ -184,6 +167,7 @@ if __name__ == '__main__':
                 intentcalled = True
                 break # Dirty programming!
             except AttributeError:
+                log.debug(f"{traceback.format_exc()}")
                 continue # Dirty programming!
 
     if intentcalled == False:

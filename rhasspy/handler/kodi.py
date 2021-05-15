@@ -34,7 +34,7 @@ class Kodi:
         self.path = path
 
     def do_post(self, data):
-        log.debug(f"Post data(url={self.url}:{data}")
+        log.debug(f"Post data(url={self.url}:<{data}>")
         try:
             res = requests.post(self.url, data=data,
                                 headers={"Content-Type": "application/json"})
@@ -98,7 +98,7 @@ class Kodi:
                + '"playlistid":0, "item":{"songid":'+str(songid)+'}}}'
         self.do_post(data)
 
-    def get_albums(self,artist="", album="", genre=""):
+    def get_albums(self,artist="", album="", genre="", composer=""):
         log.debug("get_albums")
 
         data = '{"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums"'\
@@ -120,68 +120,47 @@ class Kodi:
         return albums
 
 
-    def get_tracks_klassiek(self, artist="", composer="", matchtitle=""):
-        log.debug(f"get_tracks_klassiek artist={artist}, "\
-            + f"composer={composer}, matchtitle={matchtitle}")
+    def get_songs(self, artist="", composer="", title="", selection="", genre=""):
+        log.debug(f"get_songs artist={artist}, "\
+            + f"composer={composer}, title={title}")
         data = '{"jsonrpc": "2.0", "method": "AudioLibrary.GetSongs",'\
                 + '"params": { "limits": { "start" : 0, "end": 50000 },'\
                 + '"properties": ["displayartist", "displaycomposer"],'\
-                + '"filter":{"and":[ '\
-                + '{"field": "genre", "operator": "contains","value": "klassiek"}'
+                + '"filter":{"and":[ '
+        comma = ""
         if artist != "":
-            data = data + ',{"field": "artist", "operator": "contains",'\
+            data = data + comma + '{"field": "artist", "operator": "contains",'\
                 + '"value": "'+artist+'"}'
+            comma = ","
         if composer != "":
-            data = data + ',{"field": "artist", "operator": "contains",'\
+            data = data + comma + '{"field": "artist", "operator": "contains",'\
                 + '"value": "'+composer+'"}'
-        if matchtitle != "":
-            data = data + ',{"field": "title", "operator": "contains",'\
-                + '"value": "'+matchtitle+'"}'
+            comma = ","
+        if title != "":
+            data = data + comma + '{"field": "title", "operator": "contains",'\
+                + '"value": "'+title+'"}'
+            comma = ","
+        if selection != "":
+            for select in selection.split(","):
+                data = data + comma + '{"field": "title", "operator": "contains",'\
+                    + '"value": "'+select+'"}'
+                comma = ","
+        if genre != "":
+            data = data + ',{"field": "genre", "operator": "contains",'\
+                + '"value": "'+genre+'"}'
         data = data + ']}'
         # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
         data = data + '},"id": "libSongs"}'
 
         res = self.do_post(data)
-        log.debug(f"get_tracks_klassiek:Found:{res['result']['limits']['end']}")
+        log.debug(f"get_songs:Found:{res['result']['limits']['end']}")
 
         if "result" in res and "songs" in res["result"]:
-            tracks = res["result"]["songs"]
+            songs = res["result"]["songs"]
         else:
-            tracks = []
+            songs = []
 
-        # if matchtitle != "":
-            # print(f"Voor matching:"+str(tracks["result"])+"\n================================\n")
-            # matched_tracks = []
-            # searches = matchtitle.lower().split()
-            # print(str(searches))
-            # for track in tracks["result"]["songs"]:
-                # matched = True
-                # for match in searches:
-                    # print(f"Test:{track['label']}<- match ->{match}:"+str(track["label"].lower().find(match)))
-                    # if track["label"].lower().find(match) < 0 :
-                        # matched = False
-                        # break
-                        
-                # if matched:
-                    # matched_tracks.append(track)
-                    # print("Matched track:"+str(track))
-            # tracks["result"]["songs"] = matched_tracks
-        log.debug(f"Na matchtitle ({matchtitle}):"+str(tracks)+"\n========================\n")
-        return tracks
-
-    def add_tracks_to_playlist(self, artist, composer, matchtitle):
-        tracks = self.get_tracks_klassiek(artist, composer, matchtitle)
-
-        data = '{"jsonrpc":"2.0","id":1,"method":"Playlist.Add","params":{"playlistid":0,'\
-               + '"item":'
-        # "item":[{"songid":1839}, {"songid":1840}, {"songid":1841}, {"songid":1842}, {"songid":1878} ]}
-        separator = '['
-        for track in tracks:
-            data = data + separator + '{"songid":' + str(track["songid"]) + '}'
-            separator = ','
-        data = data + ']}}'
-        log.debug(f"Data:{data}")
-        return self.do_post(data)
+        return songs
 
     # 
     # ========================================================================
@@ -348,7 +327,7 @@ class Kodi:
         fgenres.close()
   
     def create_slots_files(self):
-        tracks = self.get_tracks_klassiek("","","")
+        tracks = self.get_songs(genre="Klassiek")
         if len(tracks) > 0:
             self.create_slots_tracks(tracks)
             self.create_slots_composers(tracks)
