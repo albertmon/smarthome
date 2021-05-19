@@ -98,7 +98,7 @@ class Kodi:
                + '"playlistid":0, "item":{"songid":'+str(songid)+'}}}'
         self.do_post(data)
 
-    def get_albums(self,artist="", album="", genre="", composer=""):
+    def get_albums(self,artist="", album="", genre=""):
         log.debug("get_albums")
 
         data = '{"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums"'\

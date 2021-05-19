@@ -10,6 +10,18 @@ config = {
         }
     }
 
+import os
+import re
+import logging
+log = logging.getLogger(__name__)
+
+
+def get_language():
+    PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default="en")
+    log.debug(f"PROFILEDIR={PROFILEDIR}.")
+    lang = re.sub(".*/(..)$","\\1",PROFILEDIR)
+    return lang + "-" + lang
+
 def get_url(key):
     return config["urls"][key]
 

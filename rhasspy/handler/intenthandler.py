@@ -29,34 +29,27 @@ import json
 import datetime
 import requests
 import subprocess
-
-from intentjson import IntentJSON
-
-
 import logging
+import re
 log = logging.getLogger(__name__)
 
-LOGPATH = "/profiles/nl/handler/"
-SHPATH = "/profiles/nl/handler/"
-domoticz_url = "http://192.168.0.3:8080/json.htm?"
-kodi_url = "http://192.168.0.5:8080/jsonrpc"
-rhasspy_url = "http://192.168.0.3:12101/api/"
+from intentjson import IntentJSON
+import intentconfig
 
-duckduckgo_url = 'https://api.duckduckgo.com/?'
 
-wind_idx = "20"
+PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default=".")
+HANDLERDIR = f"{PROFILEDIR}/handler/"
+LOGPATH = HANDLERDIR
 
-def get_duckduckgo(artist="", album="", genre=""):
-    search = ""
-    if genre != "":
-        search = "genre "+genre
+
+def get_duckduckgo(search):
+    if "DuckDuckGo" in intentconfig.config["urls"]:
+        duckduckgo_url = intentconfig.config["urls"]["DuckDuckGo"]
     else:
-        if album != "":
-            search = f"album {album} {artist}"
-        else:
-            search = artist
+        return("Configuratie fout: Geen url voor duckduckgo gevonden")
 
-    params = { 'q': search, 'kad': 'nl_NL', 'kl': 'nl-nl', 'format': 'json' }
+    language_code = intentconfig.get_language()
+    params = { 'q': search, 'kl': language_code, 'format': 'json' }
 
     log.debug(f"duckduckgo({search})")
     try:
@@ -89,24 +82,34 @@ def doDeny():
 
 def doGetTime():
     now = datetime.datetime.now()
-    intentjson.set_speech("Het is nu  %s  uur en %d minuten " % (now.hour, now.minute))
+    hour = now.hour
+    minutes = now.minute
+    intentjson.set_speech(f"Het is nu  {hour}  uur en {minutes} minuten ")
 
 
 def doTimer():
     minutes = intentjson.get_slot_value("minutes")
     seconds = intentjson.get_slot_value("seconds")
+    PATH = os.getenv("RHASSPY_PROFILE_DIR") + "/handler/"
+    command = PATH + 'timer.sh'
     seconds_to_sleep = minutes*60 + seconds
-    audiodevice = profilejson["sounds"]["aplay"]["device"]
-    soundfile = intentjson.get_slot_value("soundfile","handler/alarm_clock_1.wav")
-    if os.fork() == 0:
-        time.sleep(seconds_to_sleep)
-        out = subprocess.run(['aplay', '-D', audiodevice, PROFILEDIR+soundfile])
-        if out is None or out.returncode != 0:
-            sys.exit(1)
-        sys.exit(0)
+    log.debug(f"Call timer: [{command}, {seconds_to_sleep}]")
+
+    out = subprocess.Popen(['/bin/sh', command, str(seconds_to_sleep)],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT)
+    std_out, std_err = out.communicate()
+    out = std_out.decode("utf-8")
+    log.debug(f"doTimer:std_out=[{out}]")
+    if (len(out) > 0):
+        log.error(out)
+        intentjson.set_speech(f"Er is iets misgegaan met de timer. Ik ontving {out}")
     else:
+        log.debug(f"minutes:{minutes}, seconds:{seconds}")
+        text_and = " en "
         if minutes == 0:
             text_minutes = ""
+            text_and = ""
         else:
             if minutes == 1:
                 text_minutes = " 1 minuut"
@@ -115,16 +118,25 @@ def doTimer():
 
         if seconds == 0:
             text_seconds = ""
+            text_and = ""
         else:
             text_seconds = str(seconds) + " seconden"
 
-        if seconds == 0 or minutes == 0:
-            text_and = "en "
-        else:
-            text_and = ""
-        text = "ik heb een taimer gezet op {text_minutes} {text_and}{text_seconds}"
-        log.debug(text)
-        intentjson.set_speech(text)
+        log.debug(f"ik heb een taimer gezet op {text_minutes} {text_and} {text_seconds}")
+        intentjson.set_speech(f"ik heb een taimer gezet op {text_minutes} {text_and} {text_seconds}" )
+
+def doDuckDuckGo():
+    slots = intentjson.get_slot_value("slots")
+    searchstring = ""
+    for slot in re.sub("[^\w]", " ",  slots).split():
+        value = intentjson.get_slot_value(slot);
+        log.debug(f"slot={slot}, value={value}.")
+        searchstring = searchstring + value
+    text = get_duckduckgo(searchstring)
+    intentjson.set_speech(text)
+
+def doDummy():
+    pass
 
 # ============================================================================
 
@@ -135,13 +147,6 @@ if __name__ == '__main__':
                         level=logging.DEBUG,
                         format=formatstr,
                         datefmt='%Y%m%d %H:%M:%S')
-
-    # get profile json from file
-    PROFILEDIR=os.getenv("RHASSPY_PROFILE_DIR")
-    if PROFILEDIR != "":
-        PROFILEDIR = PROFILEDIR + "/"
-    profile = open(PROFILEDIR+'profile.json', 'r')
-    profilejson = json.loads(profile.read())
 
     # get json from stdin and load into python dict
     log.debug("Intent received")
@@ -155,8 +160,7 @@ if __name__ == '__main__':
     # Call Intent handler do[Intent]():
     text_to_speak = intentjson.get_slot_value("speech")
     intentjson.set_speech(intentjson.get_speech(text_to_speak))
-    
-    import intentconfig
+
     intentcalled = False
     for (key,intentinstance) in intentconfig.get_instances(intentjson).items():
         log.debug(f"Trying intent{key}.do{intent}")
@@ -175,9 +179,10 @@ if __name__ == '__main__':
             log.debug(f"Calling default intent do{intent}")
             eval("do"+intent)()
         except NameError:
+            log.debug(f"{traceback.format_exc()}")
             intentjson.set_speech(f"ik kan geen intent {intent} vinden")
 
     # convert dict to json and print to stdout
     returnJson = intentjson.get_json_as_string()
-    log.debug("JSON:"+returnJson)
+    log.debug(f"JSON:{returnJson}")
     print(returnJson)
