@@ -55,10 +55,12 @@ class Kodi:
                 + ', "playerid": 0},"id":"itemData"}'
         return self.do_post(data)
 
-    def restart_play(self):
+    def stop_play(self):
         data = '{"jsonrpc": "2.0", "method": "Player.Stop",'\
                + ' "params": { "playerid": 1 }, "id": 1}'
         self.do_post(data)
+
+    def start_play(self):
         data = '{"jsonrpc":"2.0", "id":1,"method":"Player.Open",'\
                + '"params":{"item":{"playlistid":0}}}'
         self.do_post(data)
@@ -161,6 +163,25 @@ class Kodi:
             songs = []
 
         return songs
+
+    def play_albums(self, albums):
+        log.debug(f"play_albums:albums:{albums}")
+        self.stop_play()
+        self.clear_playlist()
+        for album in albums:
+            log.debug(f"album={album}")
+            self.add_album_to_playlist(album["albumid"])
+        self.start_play()
+
+    def play_songs(self, songs):
+        log.debug(f"play_songs:gotSongs:{songs}")
+        self.stop_play()
+        self.clear_playlist()
+        for song in songs:
+            log.debug(f"On playlist: {song['songid']},label={song['label']}" \
+                + f"van {song['displaycomposer']}")
+            self.add_song_to_playlist(song["songid"])
+        self.start_play()
 
     # 
     # ========================================================================

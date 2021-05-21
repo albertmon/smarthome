@@ -72,22 +72,6 @@ class IntentDomo:
         Parameter:
             idx (required)- Device idx from Domoticz
     '''
-    wind = {"N": "noord",
-            "NNE": "noord noord oost",
-            "NE": "noord oost",
-            "ENE": "oost noord oost",
-            "E": "oost",
-            "ESE": "oost zuid oost",
-            "SE": "zuid oost",
-            "SSE": "zuid zuid oost",
-            "S": "zuid",
-            "SSW": "zuid zuid west",
-            "SW": "zuid west",
-            "WSW": "west zuid west",
-            "W": "west",
-            "WNW": "west noord west",
-            "NW": "noord west",
-            "NNW": "noord noord west"}
 
     def __init__(self, intentjson):
         domoticz_url = intentconfig.get_url("Domo")+"/json.htm?"
@@ -108,20 +92,18 @@ class IntentDomo:
 
         log.debug(str(res))
         res_json = json.loads(res.text)
+        log.debug(str(res_json))
 
         if "result" in res_json:
             return(res_json["result"][0])
 
         return(None)
-        
-    def domoInfo(self, idx, field_name="Data", defaultValue=""):
+
+    def domoInfo(self, idx,field_name,default=""):
         res_json = self.get_domoticz(f"type=devices&rid={idx}")
-        log.debug("Domoticz result: "+str(res_json))
         if field_name in res_json:
-            value = res_json[field_name]
-        else:
-            value = defaultValue
-        return (value)
+            return res_json[field_name]
+        return default
 
     def doDomoInfo(self):
         # get slots
@@ -131,11 +113,18 @@ class IntentDomo:
         resultMatch = self.intentjson.get_slot_value("result","RESULT")
 
         # perform action
-        value = self.domoInfo(idx, field_name,"geen idee")
+        value = self.domoInfo(idx,field_name)
+        if value == "":
+            # No value received, return Error result 
+            log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
+                + f"\n-----json--------\n{res_json}\n-----end json--------\n")
+            speech = intentconfig.get_text(intentconfig.DomoText.Error)
+            self.intentjson.set_speech(speech)
+        else:
+            # format speech result
+            returnValue = intentconfig.replace_decimal_point(str(value))
+            self.intentjson.set_speech(resultString.replace(resultMatch,returnValue))
 
-        # format speech result
-        returnValue = str(value).replace("."," komma ")
-        self.intentjson.set_speech(resultString.replace(resultMatch,returnValue))
 
     def doDomoScene(self):
         # get slots
@@ -190,9 +179,12 @@ class IntentDomo:
             speed = res_json["Speed"]
             direction = res_json["DirectionStr"]
             log.debug(f"Received: {speed},{direction}")
-            speed = speed.replace(".", " komma ")
-            self.intentjson.set_speech(f"Het waait {speed} meter per seconde uit {IntentDomo.wind[direction]}elijke richting")
+            speed = intentconfig.replace_decimal_point(speed)
+            speech = intentconfig.get_text(intentconfig.DomoText.GetWind_Response)
+            direction = intentconfig.get_text(intentconfig.DomoText.GetWind_Direction, direction)
+            self.intentjson.set_speech(speech.format(SPEED=speed, DIRECTION=direction))
         else:
-            self.intentjson.set_speech("Geen antwoord van domoticz ontvangen")
-
-
+            log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
+                + f"\n-----json--------\n{res_json}\n-----end json--------\n")
+            speech = intentconfig.get_text(intentconfig.DomoText.Error)
+            self.intentjson.set_speech(speech)

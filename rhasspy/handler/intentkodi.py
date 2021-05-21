@@ -36,12 +36,6 @@ class IntentKodi:
             - text to speak after executing the intent
 
     Implemented Intents are:
-    KodiClassical - Play classical genre music depending on parameters
-        Parameters (all optional):
-            artist - Select track only if artist matches
-            composer - Select track only if composer matches
-            title - Select track only if track-title contains title
-            selection - Select track only if track-title contains selection
     KodiAlbums - Play selected albums
         Parameters (all optional):artist="", album="", genre=""
             artist - Select album only if album-artists contain artist
@@ -52,8 +46,13 @@ class IntentKodi:
             artist - Select track only if artist matches
             composer - Select track only if composer matches
             title - Select track only if track-title contains title
+            selection - Select track only if track-title contains selection
             genre - Select track only if genre matches
     KodiPauseResume - Pause or Resume playing
+        Parameters: None
+    KodiStop - Stop playing playlist
+        Parameters: None
+    KodiStart - Start playing playlist
         Parameters: None
     KodiVolume - Set the volume to a percentage (0-100(
         Parameters:
@@ -77,92 +76,57 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
         rhasspy_url = intentconfig.get_url("Rhasspy")
         self.rhasspy = Rhasspy(rhasspy_url)
 
-    def kodiplay_albums(self, albums):
-        log.debug(f"kodiplay_albums:albums:{albums}")
-        self.kodi.clear_playlist()
-        for album in albums:
-            log.debug(f"album={album}")
-
-            if len(albums) == 1:
-                intentjson.set_speech(f"Ik ga het album {album['label']}"\
-                    + f"van {album['artist']} afspelen")
-
-            log.debug("Put on playlist album {album}")
-            self.kodi.add_album_to_playlist(album["albumid"])
-        self.kodi.restart_play()
-
-    def kodiplay_songs(self, songs):
-        log.debug(f"kodiplay_songs:gotSongs:{songs}")
-        self.kodi.clear_playlist()
-        for song in songs:
-            log.debug(f"On playlist: {song['songid']},label={song['label']}" \
-                + f"van {song['displaycomposer']}")
-            self.kodi.add_song_to_playlist(song["songid"])
-        self.kodi.restart_play()
-
     def play_albums(self, artist="", album="", genre=""):
         log.debug(f"play_albums:(artist={artist}, album={album}, genre={genre})")
-        # albums = get_albums(artist, album)
         albums = self.kodi.get_albums(artist=artist, album=album, genre=genre)
 
-        if artist is "":
-            artisttext = ""
-        else :
-            artisttext = f"van {artist}"
-
-        if album is "":
-            albumtext = "albums"
-        else :
-            albumtext = f"het album {album}"
-
-        if genre is not None and len(genre) >= 3:
-            genretekst = f"in het genre {genre}"
-        else:
-            genretekst = ""
-
-        confirmtext = f"moet ik {albumtext} {artist} {genretekst} afspelen ?"
+        question = intentconfig.get_text(intentconfig.KodiText.AskPlayConfirmation).\
+            format(TITLE=album, ARTIST=artist)
         if len(albums) == 0:
-            log.debug("play_albums:geen album gevonden")
-            if artist == "":
-                artist = "een wilekeurige artiest"
-            self.intentjson.set_speech("ik kan geen album "+album+" van "+artist+" vinden"+genretekst)
-        elif self.rhasspy.rhasspy_confirm(confirmtext):
-            self.intentjson.set_speech(f"ik ga {str(len(albums))} afspelen {genretekst}")
-            self.kodiplay_albums(albums)
+            log.debug("play_albums:no albums found")
+            no_music_found = intentconfig.get_text(intentconfig.KodiText.SayNoMusicFound).\
+                format(TITLE=album, ARTIST=artist)
+            self.intentjson.set_speech(no_music_found)
+        elif self.rhasspy.rhasspy_confirm(question ):
+            confirmation = intentconfig.get_text(intentconfig.KodiText.SayPlayConfirmation).\
+                format(TITLE=album, ARTIST=artist)
+            self.intentjson.set_speech(confirmation)
+            self.kodi.play_albums(albums)
         else:
-            self.intentjson.set_speech("okee dan niet")
+            no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoPlayConfirmation)
+            self.intentjson.set_speech(no_confirmation)
             
     def play_songs(self, artist="", composer="", title="", selection="", genre=""):
         log.debug(f"play_songs:(artist={artist}, composer={composer}, title=={title},"\
             + f"selection={selection}, genre={genre})")
         songs = self.kodi.get_songs(artist, composer, title, selection, genre)
 
+        my_title = selection if title == "" else title
+        my_artist = composer if artist == "" else artist
+        question = intentconfig.get_text(intentconfig.KodiText.AskPlayConfirmation).\
+            format(TITLE=my_title, ARTIST=my_artist)
         if len(songs) == 0:
-            log.debug("play_songs:geen muziek gevonden")
-            self.intentjson.set_speech(f"ik kan geen muziek {title} vinden")
-        elif self.rhasspy.rhasspy_confirm(f"moet ik muziek {title} afspelen ?"):
-            self.intentjson.set_speech(f"ik ga de muziek {title} afspelen")
-            self.kodiplay_songs(songs)
+            no_music_found = intentconfig.get_text(intentconfig.KodiText.SayNoMusicFound).\
+                format(TITLE=my_title, ARTIST=my_artist)
+            self.intentjson.set_speech(no_music_found)
+        elif self.rhasspy.rhasspy_confirm(question):
+            confirmation = intentconfig.get_text(intentconfig.KodiText.SayPlayConfirmation).\
+                format(TITLE=my_title, ARTIST=my_artist)
+            self.intentjson.set_speech(confirmation)
+            self.kodi.play_songs(songs)
         else:
-            self.intentjson.set_speech("okee dan niet")
+            no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoPlayConfirmation)
+            self.intentjson.set_speech(no_confirmation)
 
     # =================================================================================
-
-    def doKodiClassical(self):
-        log.debug(f"doKodiClassical")
-        title = self.intentjson.get_slot_value("title")
-        selection = self.intentjson.get_slot_value("selection")
-        artist = self.intentjson.get_slot_value("artist")
-        composer = self.intentjson.get_slot_value("composer")
-        log.debug(f"play_songs(artist={artist}, composer={composer}, title={title}, selection={selection}")
-        self.play_songs(artist=artist, composer=composer, title=title, selection=selection, genre="Klassiek")
 
     def doKodiSongs(self):
         artist = self.intentjson.get_slot_value("artist")
         composer = self.intentjson.get_slot_value("composer")
         genre = self.intentjson.get_slot_value("genre")
         title = self.intentjson.get_slot_value("title")
-        self.play_songs(artist=artist, composer=composer, title=title, genre=genre)
+        selection = self.intentjson.get_slot_value("selection")
+        self.play_songs(artist=artist, composer=composer, title=title, selection=selection, genre=genre)
 
     def doKodiAlbums(self):
         artist = self.intentjson.get_slot_value("artist")
@@ -171,6 +135,12 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
         self.play_albums(artist=artist, album=album, genre=genre)
 
     def doKodiPauseResume(self):
+        self.kodi.pause_resume()
+
+    def doKodiStop(self):
+        self.kodi.stop()
+
+    def doKodiStart(self):
         self.kodi.pause_resume()
 
     def doKodiVolume(self):
@@ -192,9 +162,10 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
             artist = item["artist"]
             title = item["title"]
             # genre = item["genre"]
-            self.intentjson.set_speech(f"Dit is het nummer, {title},"\
-                + f"van het album, {album}, van, {artist}")
+            answer = intentconfig.get_text(intentconfig.KodiText.WhatsPlaying_Response)
+            self.intentjson.set_speech(answer.format(TITLE=title, ALBUM=album, ARTIST=artist))
         else:
-            self.intentjson.set_speech("Ik weet het niet, sorry")
+            answer = intentconfig.get_text(intentconfig.KodiText.WhatsPlaying_Error)
+            self.intentjson.set_speech(answer)
 
 

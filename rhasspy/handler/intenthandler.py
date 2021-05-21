@@ -35,6 +35,7 @@ log = logging.getLogger(__name__)
 
 from intentjson import IntentJSON
 import intentconfig
+import traceback
 
 
 PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default=".")
@@ -48,7 +49,8 @@ def get_duckduckgo(search):
     else:
         return("Configuratie fout: Geen url voor duckduckgo gevonden")
 
-    language_code = intentconfig.get_language()
+    language = intentconfig.get_language()
+    language_code = language + "-" + language
     params = { 'q': search, 'kl': language_code, 'format': 'json' }
 
     log.debug(f"duckduckgo({search})")
@@ -63,7 +65,8 @@ def get_duckduckgo(search):
     res_json = json.loads(res.text)
 
     if res_json["AbstractText"] is None or res_json["AbstractText"] == "":
-        return(f"Geen informatie over {search} gevonden")
+        result = intentconfig.get_text(intentconfig.Text.DuckDuckGo_ERROR)
+        return(result.format(SEARCH=search))
     else:
         return(res_json["AbstractText"])
 
@@ -84,7 +87,8 @@ def doGetTime():
     now = datetime.datetime.now()
     hour = now.hour
     minutes = now.minute
-    intentjson.set_speech(f"Het is nu  {hour}  uur en {minutes} minuten ")
+    speech = intentconfig.get_text(intentconfig.Text.GetTime_Response)
+    intentjson.set_speech(speech.format(HOURS=hour, MINUTES=minutes))
 
 
 def doTimer():
@@ -99,31 +103,32 @@ def doTimer():
                            stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT)
     std_out, std_err = out.communicate()
-    out = std_out.decode("utf-8")
-    log.debug(f"doTimer:std_out=[{out}]")
-    if (len(out) > 0):
-        log.error(out)
-        intentjson.set_speech(f"Er is iets misgegaan met de timer. Ik ontving {out}")
+    result = std_out.decode("utf-8")
+    log.debug(f"doTimer:std_out=[{result}]")
+    if (len(result) > 0):
+        log.error(result)
+        speech = intentconfig.get_text(intentconfig.Text.GetTime_ERROR)
+        intentjson.set_speech(speech.format(MESSAGE=result))
     else:
         log.debug(f"minutes:{minutes}, seconds:{seconds}")
-        text_and = " en "
+        text_and = intentconfig.get_text(intentconfig.Text.AND)
         if minutes == 0:
             text_minutes = ""
             text_and = ""
+        elif minutes == 1:
+            text_minutes = "1 "+intentconfig.get_text(intentconfig.Text.MINUTE)
         else:
-            if minutes == 1:
-                text_minutes = " 1 minuut"
-            else:
-                text_minutes = str(minutes) + " minuten"
+            text_minutes = str(minutes)+ " " + intentconfig.get_text(intentconfig.Text.MINUTES)
 
         if seconds == 0:
             text_seconds = ""
             text_and = ""
         else:
-            text_seconds = str(seconds) + " seconden"
+            text_seconds = str(seconds) + " " + intentconfig.get_text(intentconfig.Text.SECONDS)
 
         log.debug(f"ik heb een taimer gezet op {text_minutes} {text_and} {text_seconds}")
-        intentjson.set_speech(f"ik heb een taimer gezet op {text_minutes} {text_and} {text_seconds}" )
+        speech = intentconfig.get_text(intentconfig.Text.Timer_Response)
+        intentjson.set_speech(speech.format(MINUTES=text_minutes, AND=text_and, SECONDS=text_seconds))
 
 def doDuckDuckGo():
     slots = intentjson.get_slot_value("slots")
@@ -180,7 +185,8 @@ if __name__ == '__main__':
             eval("do"+intent)()
         except NameError:
             log.debug(f"{traceback.format_exc()}")
-            intentjson.set_speech(f"ik kan geen intent {intent} vinden")
+            speech = intentconfig.get_text(intentconfig.Text.Intent_Error)
+            intentjson.set_speech(speech.format(INTENT=intent))
 
     # convert dict to json and print to stdout
     returnJson = intentjson.get_json_as_string()
