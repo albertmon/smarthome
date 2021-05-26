@@ -65,6 +65,11 @@ class Kodi:
                + '"params":{"item":{"playlistid":0}}}'
         self.do_post(data)
 
+    def pause_resume(self):
+        data = '{"jsonrpc": "2.0", "method": "Player.PlayPause",'\
+               + ' "params": { "playerid": 0 }, "id": 1}'
+        self.do_post(data)
+
     def next_track(self):
         data = '{"jsonrpc": "2.0", "method": "Player.GoTo",'\
                + ' "params": { "playerid": 0 , "to":"next"}, "id": 1}'
@@ -74,10 +79,8 @@ class Kodi:
         data = '{"jsonrpc": "2.0", "method": "Player.GoTo",'\
                + ' "params": { "playerid": 0 , "to":"previous"}, "id": 1}'
         self.do_post(data)
-
-    def pause_resume(self):
-        data = '{"jsonrpc": "2.0", "method": "Player.PlayPause",'\
-               + ' "params": { "playerid": 0 }, "id": 1}'
+        data = '{"jsonrpc": "2.0", "method": "Player.GoTo",'\
+               + ' "params": { "playerid": 0 , "to":"previous"}, "id": 1}'
         self.do_post(data)
 
     def volume(self, volume):
