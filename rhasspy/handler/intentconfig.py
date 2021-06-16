@@ -6,9 +6,9 @@ log = logging.getLogger(__name__)
 
 from enum import Enum
 Text = Enum('Text',
-            'DecimalPoint AND MINUTE MINUTES SECONDS' +
+            'DecimalPoint AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
             ' ERROR Intent_Error DuckDuckGo_ERROR' +
-            ' Timer_Response GetTime_Response')
+            ' Timer_Response GetTime_Response GetDate_Response')
 DomoText = Enum('DomoText',
             'Error GetWind_Response GetWind_Direction')
 KodiText = Enum('KodiText',
@@ -35,14 +35,20 @@ text = {
     Text.MINUTE: "minute",
     Text.MINUTES: "minutes",
     Text.SECONDS: "seconds",
+    Text.WEEKDAY: [ "sunday", "monday", "tuesday", "wednesday", "thursday",
+        "friday", "saturday" ],
+    Text.MONTH: [ "january", "febuary", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december" ],
     Text.ERROR: "something went wrong  the message was {MESSAGE}",
     Text.Intent_Error: "i cannot find intent {INTENT}",
     Text.DuckDuckGo_ERROR: "no information found for {SEARCH}",
     Text.Timer_Response: "i set a timer for {MINUTES} {AND} {SECONDS}",
     Text.GetTime_Response: "the time is  {HOURS} hours and {MINUTES} minutes",
+    Text.GetDate_Response: "today is  {WEEKDAY} {MONTH} {DAY} {YEAR}",
     
     DomoText.Error : "no answer received from domoticz",
-    DomoText.GetWind_Response : "the wind is blowing {SPEED} meter per second from the {DIRECTION}",
+    DomoText.GetWind_Response : \
+        "the wind is blowing {SPEED} meter per second from the {DIRECTION}",
     DomoText.GetWind_Direction : {
             "N": "north",
             "NNE": "north north east",
@@ -74,10 +80,15 @@ text = {
     Text.MINUTE: "minuut",
     Text.MINUTES: "minuten",
     Text.SECONDS: "seconden",
+    Text.WEEKDAY: [ "zondag", "maandag", "dinsdag", "woensdag",
+        "doderdag", "vrijdag", "zaterdag" ],
+    Text.MONTH: [ "januari", "febuari", "maart", "april", "mei", "juni",
+        "juli", "augustus", "september", "october", "november", "december" ],
     Text.ERROR: "Er is iets fout gegaan. de melding was {MESSAGE}",
     Text.DuckDuckGo_ERROR: "Geen informatie gevonden voor {SEARCH}",
     Text.Timer_Response: "ik heb een taimer gezet op {MINUTES} {AND} {SECONDS}",
     Text.GetTime_Response: "Het is nu  {HOURS}  uur en {MINUTES} minuten",
+    Text.GetDate_Response: "het is vandaag {WEEKDAY} {DAY} {MONTH} {YEAR}",
 
     DomoText.Error : "Geen of fout antwoord van domoticz ontvangen",
     DomoText.GetWind_Response : "Het waait {SPEED} meter per seconde uit {DIRECTION}elijke richting",

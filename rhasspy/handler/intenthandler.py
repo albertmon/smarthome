@@ -95,6 +95,19 @@ def doGetTime():
     speech = intentconfig.get_text(intentconfig.Text.GetTime_Response)
     intentjson.set_speech(speech.format(HOURS=hour, MINUTES=minutes))
 
+def doGetDate():
+    weekdays = intentconfig.get_text(intentconfig.Text.WEEKDAY)
+    weekday_num = time.strftime("%w")
+    weekday = weekdays[int(weekday_num)]
+    day = time.strftime("%d")
+    months = intentconfig.get_text(intentconfig.Text.MONTH)
+    month_num = time.strftime("%m")
+    month = months[int(month_num)-1]
+    year = time.strftime("%Y")
+    speech = intentconfig.get_text(intentconfig.Text.GetDate_Response).\
+        format(WEEKDAY=weekday, DAY=day, MONTH=month, YEAR=year)
+
+    intentjson.set_speech(speech)
 
 def doTimer():
     minutes = int(intentjson.get_slot_value("minutes"))
@@ -134,7 +147,7 @@ def doTimer():
         log.debug(f"Timer set. Text:{text_minutes} {text_and} {text_seconds}")
         speech = intentconfig.get_text(intentconfig.Text.Timer_Response).\
             format(MINUTES=text_minutes, AND=text_and, SECONDS=text_seconds)
-        intentjson.set_speech(speech.)
+        intentjson.set_speech(speech)
 
 
 def doDuckDuckGo():
@@ -177,7 +190,7 @@ if __name__ == '__main__':
         log.debug(f"Trying intent{key}.do{intent}")
         if intent.startswith(key):
             try:
-                log.debug(f"Calling intent{key}.do{intent}}")
+                log.debug(f"Calling intent{key}.do{intent}")
                 eval(f"intentinstance.do"+intent)()
                 intentcalled = True
                 break  # Dirty programming!
