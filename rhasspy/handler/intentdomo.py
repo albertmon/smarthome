@@ -71,6 +71,14 @@ class IntentDomo:
     DomoGetWind - Special info intent to hear the wind speed and direction
         Parameter:
             idx (required)- Device idx from Domoticz
+    DomoSun - Get data for sunrise, sunset, dawn and dusk
+        Parameter:
+            speech - text to speak
+                the following strings are replaced by times (hours minutes):
+                DAWN: speak the time of dawn 
+                SUNRISE: speak the time of sunrise 
+                SUNSET: speak the time of sunset 
+                DUSK: speak the time of dusk 
     '''
 
     def __init__(self, intentjson):
@@ -97,7 +105,7 @@ class IntentDomo:
         if "result" in res_json:
             return(res_json["result"][0])
 
-        return(None)
+        return(res_json)
 
     def domoInfo(self, idx,field_name,default=""):
         res_json = self.get_domoticz(f"type=devices&rid={idx}")
@@ -188,3 +196,62 @@ class IntentDomo:
                 + f"\n-----json--------\n{res_json}\n-----end json--------\n")
             speech = intentconfig.get_text(intentconfig.DomoText.Error)
             self.intentjson.set_speech(speech)
+
+    def get_json_value(self, res_json, name, default=""):
+        if name in res_json:
+            return res_json[name]
+        return default
+
+
+    def doDomoSun(self):
+        '''
+            Return the data for dusk, sunrise, sunset and dawn.
+            Data is retrieved from domoticz.
+            Example JSON return:
+                {
+                  "ActTime": 1623943842,
+                  "AstrTwilightEnd": "00:00",
+                  "AstrTwilightStart": "00:00",
+                  "CivTwilightEnd": "22:55",
+                  "CivTwilightStart": "04:28",
+                  "DayLength": "16:48",
+                  "NautTwilightEnd": "00:16",
+                  "NautTwilightStart": "03:06",
+                  "ServerTime": "2021-06-17 17:30:42",
+                  "SunAtSouth": "13:41",
+                  "Sunrise": "05:17",
+                  "Sunset": "22:05",
+                  "app_version": "2020.2",
+                  "status": "OK",
+                  "title": "Devices"
+                }
+            The result is returned in tags DAWN, SUNRISE, SUNSET and DUSK
+            in the speech slot
+        '''
+        # get slots
+        speech = self.intentjson.get_slot_value("speech")
+
+        # perform action
+        res_json = self.get_domoticz("type=devices&rid=0")
+        log.debug(str(res_json))
+        
+        dawn = self.get_json_value(res_json,"CivTwilightStart").replace(':',' ')
+        sunrise = self.get_json_value(res_json,"Sunrise").replace(':',' ')
+        sunset = self.get_json_value(res_json,"Sunset").replace(':',' ')
+        dusk = self.get_json_value(res_json,"CivTwilightEnd").replace(':',' ')
+
+        # format speech result
+        if "DAWN" in speech:
+            speech = speech.replace('DAWN', dawn)
+        if "SUNRISE" in speech:
+            speech = speech.replace('SUNRISE', sunrise)
+        if "SUNSET" in speech:
+            speech = speech.replace('SUNSET', sunset)
+        if "DUSK" in speech:
+            speech = speech.replace('DUSK', dusk)
+        log.debug(f"Speech(DUSK={dusk}: <{speech}>")
+
+        self.intentjson.set_speech(speech)
+
+
+
