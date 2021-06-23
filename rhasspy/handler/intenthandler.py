@@ -131,12 +131,12 @@ def doTimer():
         log.debug(f"minutes:{minutes}, seconds:{seconds}")
         text_and = intentconfig.get_text(intentconfig.Text.AND)
         if minutes == 0:
-            text_min = ""
+            text_minutes = ""
             text_and = ""
         elif minutes == 1:
-            text_min = f"1 {intentconfig.get_text(intentconfig.Text.MINUTE)}"
+            text_minutes = f"1 {intentconfig.get_text(intentconfig.Text.MINUTE)}"
         else:
-            text_min = f"{minutes} {intentconfig.get_text(intentconfig.Text.MINUTES)}"
+            text_minutes = f"{minutes} {intentconfig.get_text(intentconfig.Text.MINUTES)}"
 
         if seconds == 0:
             text_seconds = ""
