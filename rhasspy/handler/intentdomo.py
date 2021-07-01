@@ -71,14 +71,6 @@ class IntentDomo:
     DomoGetWind - Special info intent to hear the wind speed and direction
         Parameter:
             idx (required)- Device idx from Domoticz
-    DomoSun - Get data for sunrise, sunset, dawn and dusk
-        Parameter:
-            speech - text to speak
-                the following strings are replaced by times (hours minutes):
-                DAWN: speak the time of dawn 
-                SUNRISE: speak the time of sunrise 
-                SUNSET: speak the time of sunset 
-                DUSK: speak the time of dusk 
     '''
 
     def __init__(self, intentjson):
@@ -243,6 +235,7 @@ class IntentDomo:
         # format speech result
         if "DAWN" in speech:
             speech = speech.replace('DAWN', dawn)
+        log.debug(f"Speech(DAWN={dawn}: <{speech}>")
         if "SUNRISE" in speech:
             speech = speech.replace('SUNRISE', sunrise)
         if "SUNSET" in speech:
