@@ -34,6 +34,8 @@ import re
 from intentjson import IntentJSON
 import intentconfig
 import traceback
+from intentexcept import error_missing_parameter
+from intentexcept import SentencesError
 
 log = logging.getLogger(__name__)
 
@@ -111,12 +113,18 @@ def doGetDate():
     intentjson.set_speech(speech)
 
 def doTimer():
-    minutes = int(intentjson.get_slot_value("minutes"))
-    seconds = int(intentjson.get_slot_value("seconds"))
+    minutes = int(intentjson.get_slot_value("minutes","0"))
+    seconds = int(intentjson.get_slot_value("seconds","0"))
+        
     PATH = os.getenv("RHASSPY_PROFILE_DIR") + "/handler/"
     command = PATH + 'timer.sh'
     seconds_to_sleep = minutes*60 + seconds
     log.debug(f"Call timer: [{command}, {seconds_to_sleep}]")
+
+    if seconds_to_sleep < 10:
+        speech = intentconfig.get_text(intentconfig.Text.Timer_ERROR)
+        intentjson.set_speech(speech)
+        return
 
     out = subprocess.Popen(['/bin/sh', command, str(seconds_to_sleep)],
                            stdout=subprocess.PIPE,
@@ -126,7 +134,7 @@ def doTimer():
     log.debug(f"doTimer:std_out=[{result}]")
     if (len(result) > 0):
         log.error(f"== ERROR =v= ERROR ==\n{result}\n== ERROR =^= ERROR ==")
-        speech = intentconfig.get_text(intentconfig.Text.GetTime_ERROR)
+        speech = intentconfig.get_text(intentconfig.Text.Timer_ERROR)
         intentjson.set_speech(speech)
     else:
         log.debug(f"minutes:{minutes}, seconds:{seconds}")
@@ -157,14 +165,20 @@ def getStringAsDate(s):
     elif re.match(r"\d{1,2}-\d{1,2}-\d{4}", s) :
         date = datetime.datetime.strptime(s,"%d-%m-%Y")
     else:
-        date = datetime.datetime.strptime("01-01-1900","%d-%m-%Y")
+        date = None
     return date
 
 def doGetAge():
     name = intentjson.get_raw_value_for("birthday")
+    if not name:
+        error_missing_parameter("birthday","GetAge")
     birthday = intentjson.get_slot_value("birthday")
+    if not name:
+        error_missing_parameter("birthday","GetAge")
     log.debug(f"doGetAge, name=<{name}>, birthday=[{birthday}]")
     birthdate = getStringAsDate(birthday)
+    if not birthdate:
+        error_missing_parameter("birthday","GetAge")
     today = datetime.date.today()
     age = today.year - birthdate.year 
     if ((today.month, today.day) < (birthdate.month, birthdate.day)):
@@ -262,28 +276,32 @@ if __name__ == '__main__':
     text_to_speak = intentjson.get_slot_value("speech")
     intentjson.set_speech(intentjson.get_speech(text_to_speak))
 
-    intentcalled = False
-    for (key, intentinstance) in\
-            intentconfig.get_instances(intentjson).items():
-        log.debug(f"Trying intent{key}.do{intent}")
-        if intent.startswith(key):
-            try:
-                log.debug(f"Calling intent{key}.do{intent}")
-                eval(f"intentinstance.do"+intent)()
-                intentcalled = True
-                break  # Dirty programming!
-            except AttributeError:
-                log.debug(f"{traceback.format_exc()}")
-                continue  # Dirty programming!
+    try:
+        intentcalled = False
+        for (key, intentinstance) in\
+                intentconfig.get_instances(intentjson).items():
+            log.debug(f"Trying intent{key}.do{intent}")
+            if intent.startswith(key):
+                try:
+                    log.debug(f"Calling intent{key}.do{intent}")
+                    eval(f"intentinstance.do"+intent)()
+                    intentcalled = True
+                    break  # Dirty programming!
+                except AttributeError:
+                    log.debug(f"{traceback.format_exc()}")
+                    continue  # Dirty programming!
 
-    if not intentcalled:
-        try:
-            log.debug(f"Calling default intent do{intent}")
-            eval("do"+intent)()
-        except NameError:
-            log.debug(f"{traceback.format_exc()}")
-            speech = intentconfig.get_text(intentconfig.Text.Intent_Error)
-            intentjson.set_speech(speech.format(INTENT=intent))
+        if not intentcalled:
+            try:
+                log.debug(f"Calling default intent do{intent}")
+                eval("do"+intent)()
+            except NameError:
+                log.debug(f"{traceback.format_exc()}")
+                speech = intentconfig.get_text(intentconfig.Text.Intent_Error)
+                intentjson.set_speech(speech.format(INTENT=intent))
+    except SentencesError as se:
+        speech = se.handle()
+        intentjson.set_speech(speech)
 
     # convert dict to json and print to stdout
     returnJson = intentjson.get_json_as_string()

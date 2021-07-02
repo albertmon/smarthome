@@ -22,22 +22,13 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
    So any resemblance to already existing code is purely coincidental
 '''
 
-# import sys
 import json
-# import datetime
 import requests
-# import subprocess
-
-# from intentjson import IntentJSON
-# from intentkodi import IntentKodi
-# from rhasspy import Rhasspy
-# from kodi import Kodi
 import intentconfig
+from intentexcept import error_missing_parameter
 
 import logging
 log = logging.getLogger(__name__)
-
-PATH = "/profiles/nl/handler/"
 
 class IntentDomo:
     '''
@@ -109,7 +100,11 @@ class IntentDomo:
         # get slots
         field_name = self.intentjson.get_slot_value("name", "Data")
         idx = self.intentjson.get_slot_value("idx")
-        resultString = self.intentjson.get_slot_value("speech")
+        if not idx:
+            error_missing_parameter("idx","DomoInfo")
+        speech = self.intentjson.get_slot_value("speech")
+        if not speech:
+            error_missing_parameter("speech","DomoInfo")
         resultMatch = self.intentjson.get_slot_value("result","RESULT")
 
         # perform action
@@ -123,15 +118,20 @@ class IntentDomo:
         else:
             # format speech result
             returnValue = intentconfig.replace_decimal_point(str(value))
-            self.intentjson.set_speech(resultString.replace(resultMatch,returnValue))
+            self.intentjson.set_speech(speech.replace(resultMatch,returnValue))
 
 
     def doDomoScene(self):
         # get slots
         idx = self.intentjson.get_slot_value("idx")
+        if not idx:
+            error_missing_parameter("idx","DomoScene")
 
         # format speech result
-        self.intentjson.set_speech(self.intentjson.get_slot_value("speech"))
+        speech = self.intentjson.get_slot_value("speech")
+        if not speech:
+            error_missing_parameter("speech","DomoScene")
+        self.intentjson.set_speech(speech)
 
         # perform action
         command = f"type=command&param=switchscene&idx={idx}&switchcmd=On"
@@ -139,7 +139,9 @@ class IntentDomo:
 
     def doDomoDimmer(self):
         # get slots
-        idx = self.intentjson.get_slot_value("idx", default=-1)
+        idx = self.intentjson.get_slot_value("idx")
+        if not idx:
+            error_missing_parameter("idx","DomoDimmer")
         state = self.intentjson.get_slot_value("state",default="Off")
         level = self.intentjson.get_slot_value("level", default=100)
 
@@ -158,16 +160,22 @@ class IntentDomo:
     def doDomoSwitch(self):
         # get slots
         idx = self.intentjson.get_slot_value("idx")
+        if not idx:
+            error_missing_parameter("idx","DomoSwitch")
         state = self.intentjson.get_slot_value("state")
-        log.debug(f"doSwitch:idx={idx},state={state}")
+        if not state:
+            error_missing_parameter("state","DomoSwitch")
+        log.debug(f"doDomoSwitch:idx={idx},state={state}")
 
         # perform action
         command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
-        log.debug(f"domoSwitch:command={command}")
+        log.debug(f"doDomoSwitch:command={command}")
         self.get_domoticz(command)
 
     def doDomoGetWind(self):
         idx = self.intentjson.get_slot_value("idx")
+        if not idx:
+            error_missing_parameter("idx","DomoGetWind")
         log.debug(f"doDomoGetWind:idx={idx}")
 
         # perform action
@@ -222,6 +230,8 @@ class IntentDomo:
         '''
         # get slots
         speech = self.intentjson.get_slot_value("speech")
+        if not speech:
+            error_missing_parameter("speech","DomoSun")
 
         # perform action
         res_json = self.get_domoticz("type=devices&rid=0")

@@ -1,4 +1,27 @@
 #!/usr/bin/env python
+
+'''
+Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+   ---------------------------------------------------------------------------
+   Programming is the result of learning from others and making errors.
+   A good programmer often follows the tips and tricks of better programmers.
+   The solution of a problem seldom leads to new or original code.
+   So any resemblance to already existing code is purely coincidental
+'''
+
 import os
 import re
 import logging
@@ -7,9 +30,9 @@ log = logging.getLogger(__name__)
 from enum import Enum
 Text = Enum('Text',
             'DecimalPoint AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
-            ' ERROR Intent_Error DuckDuckGo_ERROR' +
-            ' Timer_Response GetTime_Response GetDate_Response' +
-            ' GetAge_Response GetBirthDay_Single' +
+            ' ERROR Intent_Error DuckDuckGo_ERROR SENTENCES_ERROR' +
+            ' Timer_Response Timer_ERROR GetTime_Response' +
+            ' GetDate_Response GetAge_Response GetBirthDay_Single' +
             ' GetBirthDay_Multiple  GetBirthDay_Month' +
             ' GetBirthDay_MonthList GetNoBirthDay')
 DomoText = Enum('DomoText',
@@ -43,9 +66,11 @@ text = {
     Text.MONTH: [ "january", "febuary", "march", "april", "may", "june",
         "july", "august", "september", "october", "november", "december" ],
     Text.ERROR: "something went wrong.  Please check the error in the logfile",
+    Text.SENTENCES_ERROR: "something went wrong.  Please check the logfile for SENTENCES ERROR",
     Text.Intent_Error: "i cannot find intent {INTENT}",
     Text.DuckDuckGo_ERROR: "no information found for {SEARCH}",
     Text.Timer_Response: "i set a timer for {MINUTES} {AND} {SECONDS}",
+    Text.Timer_ERROR: "i could not set a timer for less than 10 seconds",
     Text.GetTime_Response: "the time is  {HOURS} hours and {MINUTES} minutes",
     Text.GetDate_Response: "today is  {WEEKDAY} {MONTH} {DAY} {YEAR}",
     Text.GetAge_Response: ".birthday. is {YEARS} old",
@@ -93,8 +118,10 @@ text = {
     Text.MONTH: [ "januari", "febuari", "maart", "april", "mei", "juni",
         "juli", "augustus", "september", "october", "november", "december" ],
     Text.ERROR: "Er is iets fout gegaan. zoek in het log bestand naar error",
+    Text.SENTENCES_ERROR: "Er is iets fout gegaan. zoek in het log bestand naar SENTENCES ERROR",
     Text.DuckDuckGo_ERROR: "Geen informatie gevonden voor {SEARCH}",
     Text.Timer_Response: "ik heb een taimer gezet op {MINUTES} {AND} {SECONDS}",
+    Text.Timer_ERROR: "ik kan geen taimer zetten voor minder dan 10 seconden",
     Text.GetTime_Response: "Het is nu  {HOURS}  uur en {MINUTES} minuten",
     Text.GetDate_Response: "het is vandaag {WEEKDAY} {DAY} {MONTH} {YEAR}",
     Text.GetAge_Response: ".birthday. is {YEARS}",

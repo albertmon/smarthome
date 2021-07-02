@@ -24,13 +24,10 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 
 import json
 import requests
-
 import intentconfig
-
+from intentexcept import error_missing_parameter
 import logging
 log = logging.getLogger(__name__)
-
-PATH = "/profiles/nl/handler/"
 
 class IntentSmartCity:
     '''
@@ -89,8 +86,14 @@ class IntentSmartCity:
     def doSmartCityInfo(self):
         # get slots
         kit = self.intentjson.get_slot_value("kit")
+        if not kit:
+            error_missing_parameter("kit","doSmartCityInfo")
         idx = self.intentjson.get_slot_value("idx")
-        resultString = self.intentjson.get_slot_value("speech")
+        if not idx:
+            error_missing_parameter("idx","doSmartCityInfo")
+        speech = self.intentjson.get_slot_value("speech")
+        if not speech:
+            error_missing_parameter("speech","doSmartCityInfo")
         defaultValue = self.intentjson.get_slot_value("novalue","")
         resultMatch = self.intentjson.get_slot_value("result","RESULT")
         log.debug("doSmartCityInfo:kit={kit}, idx={idx}.")
@@ -100,7 +103,7 @@ class IntentSmartCity:
 
         # format speech result
         returnValue = str(value).replace("."," komma ")
-        result=resultString.replace(resultMatch,returnValue)
+        result = speech.replace(resultMatch,returnValue)
         log.debug("doSmartCityInfo:result={result}.")
         self.intentjson.set_speech(result)
 
