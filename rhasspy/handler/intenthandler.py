@@ -166,8 +166,8 @@ def doGetAge():
     log.debug(f"doGetAge, name=<{name}>, birthday=[{birthday}]")
     birthdate = getStringAsDate(birthday)
     today = datetime.date.today()
-    age = today.year - born.year 
-    if ((today.month, today.day) < (born.month, born.day)):
+    age = today.year - birthdate.year 
+    if ((today.month, today.day) < (birthdate.month, birthdate.day)):
         age = age - 1  # birthday not yet passed
     speech = intentconfig.get_text(intentconfig.Text.GetAge_Response)
     speech = intentjson.get_speech(speech)
