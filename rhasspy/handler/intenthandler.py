@@ -72,6 +72,8 @@ def get_duckduckgo(search):
 
 
 # ================  Intent handlers =================================
+# All intent handlers start with do followed by the intent name (Case Sensitive!)
+
 
 
 def doDummy():
@@ -96,14 +98,13 @@ def doGetTime():
     intentjson.set_speech(speech.format(HOURS=hour, MINUTES=minutes))
 
 def doGetDate():
+    now = datetime.datetime.now()
     weekdays = intentconfig.get_text(intentconfig.Text.WEEKDAY)
-    weekday_num = time.strftime("%w")
-    weekday = weekdays[int(weekday_num)]
-    day = time.strftime("%d")
     months = intentconfig.get_text(intentconfig.Text.MONTH)
-    month_num = time.strftime("%m")
-    month = months[int(month_num)-1]
-    year = time.strftime("%Y")
+    weekday = weekdays[now.weekday()]  # monday = 0
+    day = now.day
+    month = months[now.month-1]  # index starts at 0
+    year = now.year
     speech = intentconfig.get_text(intentconfig.Text.GetDate_Response).\
         format(WEEKDAY=weekday, DAY=day, MONTH=month, YEAR=year)
 
@@ -124,9 +125,9 @@ def doTimer():
     result = std_out.decode("utf-8")
     log.debug(f"doTimer:std_out=[{result}]")
     if (len(result) > 0):
-        log.error(result)
+        log.error(f"== ERROR =v= ERROR ==\n{result}\n== ERROR =^= ERROR ==")
         speech = intentconfig.get_text(intentconfig.Text.GetTime_ERROR)
-        intentjson.set_speech(speech.format(MESSAGE=result))
+        intentjson.set_speech(speech)
     else:
         log.debug(f"minutes:{minutes}, seconds:{seconds}")
         text_and = intentconfig.get_text(intentconfig.Text.AND)
@@ -149,6 +150,83 @@ def doTimer():
             format(MINUTES=text_minutes, AND=text_and, SECONDS=text_seconds)
         intentjson.set_speech(speech)
 
+def getStringAsDate(s):
+    log.debug(f"getStringAsDate:s=[{s}]")
+    if re.match(r"\d{4}-\d{1,2}-\d{1,2}", s) :
+        date = datetime.datetime.strptime(s,"%Y-%m-%d")
+    elif re.match(r"\d{1,2}-\d{1,2}-\d{4}", s) :
+        date = datetime.datetime.strptime(s,"%d-%m-%Y")
+    else:
+        date = datetime.datetime.strptime("01-01-1900","%d-%m-%Y")
+    return date
+
+def doGetAge():
+    name = intentjson.get_raw_value_for("birthday")
+    birthday = intentjson.get_slot_value("birthday")
+    log.debug(f"doGetAge, name=<{name}>, birthday=[{birthday}]")
+    birthdate = getStringAsDate(birthday)
+    today = datetime.date.today()
+    age = today.year - born.year 
+    if ((today.month, today.day) < (born.month, born.day)):
+        age = age - 1  # birthday not yet passed
+    speech = intentconfig.get_text(intentconfig.Text.GetAge_Response)
+    speech = intentjson.get_speech(speech)
+    log.debug(f"age={age}, speech=[{speech}]")
+    speech = speech.replace('YEARS',str(age))
+    intentjson.set_speech(speech)
+
+def doBirthDays():
+    today = datetime.date.today()
+    slotsfile = os.getenv("RHASSPY_PROFILE_DIR") + "/slots/birthdays"
+    slots = intentconfig.get_slots(slotsfile)
+
+    birthday_persons = ""
+    born_this_month = {}
+    for name, birthday in slots.items():
+        birthdate = getStringAsDate(birthday)
+        if birthdate.month == today.month:
+            if birthdate.day == today.day:
+                if len(birthday_persons) > 0:
+                    and_string = intentconfig.get_text(intentconfig.Text.AND)
+                    birthday_persons = f"{birthday_persons} {and_string} "
+                birthday_persons = birthday_persons + name
+            elif birthdate.day > today.day:
+                born_this_month[name] = birthdate
+        elif birthdate.month == (today.month+1)%12 \
+            and birthdate.day <= today.day:  # birthday next month?:
+            born_this_month[name] = birthdate
+            
+    log.debug(f"birthday_persons:[{birthday_persons}]\n"\
+        + f"   born_this_month:[{str(born_this_month)}]")
+        
+    if len(birthday_persons) == 1 :
+        speech = intentconfig.get_text(intentconfig.Text.GetBirthDay_Single)
+        speech = speech.format(NAME=birthday_persons[0])
+    elif len(birthday_persons) > 1 :
+        speech = intentconfig.get_text(intentconfig.Text.GetBirthDay_Multiple)
+        speech = speech + birthday_persons
+    else:
+        speech = ""
+
+    if len(born_this_month) > 0 :
+        text = intentconfig.get_text(intentconfig.Text.GetBirthDay_Month)
+        months = intentconfig.get_text(intentconfig.Text.MONTH)
+        list_string = intentconfig.get_text(intentconfig.Text.GetBirthDay_MonthList)
+        log.debug(f"list_string=[{list_string}]")
+        names = ""
+        and_string = ": " + intentconfig.get_text(intentconfig.Text.AND) + " "
+        for name, birthdate in born_this_month.items():
+            datestr = f" {birthdate.day} {months[birthdate.month-1]} " 
+            if names:
+                names = names + and_string
+            names = names + list_string.format(NAME=name,DATE=datestr)
+            log.debug(f"names={names}, name={name}, DATE={datestr}")
+        speech = speech + ": " + text + " " + names
+
+    if not speech: 
+        speech = intentconfig.get_text(intentconfig.Text.GetNoBirthDay)
+
+    intentjson.set_speech(speech)
 
 def doDuckDuckGo():
     slots = intentjson.get_slot_value("slots")

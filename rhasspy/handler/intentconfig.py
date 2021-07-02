@@ -8,7 +8,10 @@ from enum import Enum
 Text = Enum('Text',
             'DecimalPoint AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
             ' ERROR Intent_Error DuckDuckGo_ERROR' +
-            ' Timer_Response GetTime_Response GetDate_Response')
+            ' Timer_Response GetTime_Response GetDate_Response' +
+            ' GetAge_Response GetBirthDay_Single' +
+            ' GetBirthDay_Multiple  GetBirthDay_Month' +
+            ' GetBirthDay_MonthList GetNoBirthDay')
 DomoText = Enum('DomoText',
             'Error GetWind_Response GetWind_Direction')
 KodiText = Enum('KodiText',
@@ -35,17 +38,22 @@ text = {
     Text.MINUTE: "minute",
     Text.MINUTES: "minutes",
     Text.SECONDS: "seconds",
-    Text.WEEKDAY: [ "sunday", "monday", "tuesday", "wednesday", "thursday",
-        "friday", "saturday" ],
+    Text.WEEKDAY: [ "monday", "tuesday", "wednesday", "thursday",
+        "friday", "saturday", "sunday" ],
     Text.MONTH: [ "january", "febuary", "march", "april", "may", "june",
         "july", "august", "september", "october", "november", "december" ],
-    Text.ERROR: "something went wrong  the message was {MESSAGE}",
+    Text.ERROR: "something went wrong.  Please check the error in the logfile",
     Text.Intent_Error: "i cannot find intent {INTENT}",
     Text.DuckDuckGo_ERROR: "no information found for {SEARCH}",
     Text.Timer_Response: "i set a timer for {MINUTES} {AND} {SECONDS}",
     Text.GetTime_Response: "the time is  {HOURS} hours and {MINUTES} minutes",
     Text.GetDate_Response: "today is  {WEEKDAY} {MONTH} {DAY} {YEAR}",
-    
+    Text.GetAge_Response: ".birthday. is {YEARS} old",
+    Text.GetBirthDay_Single: "Today is {NAME} s birthday",
+    Text.GetBirthDay_Multiple: "Today is the birthay of: ",
+    Text.GetBirthDay_Month: "birthdays are coming for: ",
+    Text.GetBirthDay_MonthList : " {NAME} on {DATE} ",
+    Text.GetNoBirthDay: "there are no birthdays in the coming month",
     DomoText.Error : "no answer received from domoticz",
     DomoText.GetWind_Response : \
         "the wind is blowing {SPEED} meter per second from the {DIRECTION}",
@@ -80,15 +88,21 @@ text = {
     Text.MINUTE: "minuut",
     Text.MINUTES: "minuten",
     Text.SECONDS: "seconden",
-    Text.WEEKDAY: [ "zondag", "maandag", "dinsdag", "woensdag",
-        "doderdag", "vrijdag", "zaterdag" ],
+    Text.WEEKDAY: [ "maandag", "dinsdag", "woensdag",
+        "donderdag", "vrijdag", "zaterdag", "zondag" ],
     Text.MONTH: [ "januari", "febuari", "maart", "april", "mei", "juni",
         "juli", "augustus", "september", "october", "november", "december" ],
-    Text.ERROR: "Er is iets fout gegaan. de melding was {MESSAGE}",
+    Text.ERROR: "Er is iets fout gegaan. zoek in het log bestand naar error",
     Text.DuckDuckGo_ERROR: "Geen informatie gevonden voor {SEARCH}",
     Text.Timer_Response: "ik heb een taimer gezet op {MINUTES} {AND} {SECONDS}",
     Text.GetTime_Response: "Het is nu  {HOURS}  uur en {MINUTES} minuten",
     Text.GetDate_Response: "het is vandaag {WEEKDAY} {DAY} {MONTH} {YEAR}",
+    Text.GetAge_Response: ".birthday. is {YEARS}",
+    Text.GetBirthDay_Single: "Vandaag is de verjaardag van: {NAME}",
+    Text.GetBirthDay_Multiple: "Vandaag is de verjaardag van: ",
+    Text.GetBirthDay_Month: "komende verjaardagen zijn:  ",
+    Text.GetBirthDay_MonthList : " {NAME} op {DATE} ",
+    Text.GetNoBirthDay: "de rest van de maand en de volgende maand zijn er geen verjaardagen",
 
     DomoText.Error : "Geen of fout antwoord van domoticz ontvangen",
     DomoText.GetWind_Response : "Het waait {SPEED} meter per seconde uit {DIRECTION}elijke richting",
@@ -127,12 +141,12 @@ text = {
  
 
 def get_language():
-    PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default="en")
+    PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default="nl")
     return re.sub(".*/(..)$","\\1",PROFILEDIR)
 
 def get_text(textid=Text.ERROR,textsubid=None):
     lang = get_language()
-    default_lang = "en"
+    default_lang = "nl"
     if not lang in text:
         lang = default_lang
 
@@ -163,3 +177,16 @@ def get_instances(json):
         from intentsmartcity import IntentSmartCity
         instances["SmartCity"] = IntentSmartCity(json)
     return instances
+
+def get_slots(filename):
+    fslots = open(filename, "r")
+    lines = fslots.read().splitlines()
+    fslots.close()
+    slots = {}
+    for l in lines:
+        line = l.split(':')
+        if len(line) == 2:
+            name = re.sub('[)(]', '', line[0])
+            date = line[1]
+            slots[name] = date
+    return slots
