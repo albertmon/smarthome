@@ -1,0 +1,50 @@
+#!/bin/bash
+
+confirm(){
+        echo -n "$1 (Y/n)"
+        read ans
+        case $ans in
+        [nN]*) return 1;;
+        esac
+        return 0
+}
+
+# Based on script from https://unix.stackexchange.com/users/4358/phemmer
+get_devices(){
+        for sysdevpath in $(find /sys/bus/usb/devices/usb*/ -name dev)
+        do
+                syspath="${sysdevpath%/dev}"
+                devname="$(udevadm info -q name -p $syspath)"
+                # echo devname=$devname >&2
+                [[ "$devname" == "bus/"* ]] && continue
+                [[ "$devname" =~ "input/"* ]] && continue
+                unset ID_SERIAL
+                eval "$(udevadm info -q property --export -p $syspath)"
+                [[ -z "$ID_SERIAL" ]] && continue
+                # echo ID_SERIAL=$ID_SERIAL >&2
+                echo "--device /dev/$devname "
+        done
+}
+
+DEVICES=$(get_devices)
+
+DOMOTICZ=~/domoticz
+[[ -d $DOMOTICZ ]] || { confirm "Do you want me to create directory $DOMOTICZ ?" && mkdir $DOMOTICZ || exit 1 ; }
+
+TZ=$(cat /etc/timezone)
+
+CONTAINER_NAME=domoticz_1
+
+# Run container
+
+docker run -d \
+    -p 8080:8080 \
+    -p 8443:443 \
+    -v $DOMOTICZ:/opt/domoticz/userdata \
+    -e TZ=$TZ \
+    $DEVICES \
+    --name=$CONTAINER_NAME \
+    domoticz/domoticz
+
+exit 0
+

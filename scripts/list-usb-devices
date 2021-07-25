@@ -1,0 +1,20 @@
+#!/bin/bash
+# Based on script from https://unix.stackexchange.com/users/4358/phemmer
+
+for sysdevpath in $(find /sys/bus/usb/devices/usb*/ -name dev); do
+    (
+        syspath="${sysdevpath%/dev}"
+        devname="$(udevadm info -q name -p $syspath)"
+        [[ "$devname" == "bus/"* ]] && exit
+        eval "$(udevadm info -q property --export -p $syspath)"
+        [[ -z "$ID_SERIAL" ]] && exit
+        VENDOR=$ID_VENDOR_FROM_DATABASE
+        [[ -z "$VENDOR" ]] && VENDOR=$ID_VENDOR
+        MODEL=$ID_MODEL_FROM_DATABASE
+        [[ -z "$MODEL" ]] && MODEL=$ID_MODEL
+        echo "/dev/$devname - $SUBSYSTEM - $MODEL (vendor:$VENDOR)"
+    )
+done
+
+exit 0
+
