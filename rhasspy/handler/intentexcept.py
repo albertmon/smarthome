@@ -40,8 +40,8 @@ class SentencesError(Exception):
         return self.message
 
     def handle(self):
-        log.warn("================ SENTENCES ERROR ================")
-        log.warn(self.message)
+        log.warning("================ SENTENCES ERROR ================")
+        log.warning(self.message)
         log.debug(f"{traceback.format_exc()}")
         speech = get_text(Text.SENTENCES_ERROR)
         return speech
