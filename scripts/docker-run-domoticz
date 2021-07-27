@@ -2,20 +2,17 @@
 
 . $(dirname $0)/functions.sh
 
-[[ ! -z "$1" ]] && SHOW=echo
-
 DEVICES=$(get_devices)
 
 DOMOTICZ=~/domoticz
-[[ -d $DOMOTICZ ]] || { confirm "Do you want me to create directory $DOMOTICZ ?" && mkdir $DOMOTICZ || exit 1 ; }
+[[ -d $DOMOTICZ ]] || { confirm "Do you want me to create directory '$DOMOTICZ' ?" && mkdir $DOMOTICZ || exit 1 ; }
 
 TZ=$(cat /etc/timezone)
 
 CONTAINER_NAME=$(get_containername domoticz)
 
-echo "container name = '$CONTAINER_NAME' "
-
-$SHOW docker run -d \
+confirm "Do you want to start Domoticz with devices '$DEVICES' and containername '$CONTAINER_NAME' ? " &&
+docker run -d \
     --restart unless-stopped \
     -p 8080:8080 \
     -p 8443:443 \

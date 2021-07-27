@@ -29,7 +29,7 @@ get_devices(){
 get_containername(){
 	DEFAULT=$1
 	CONTAINER_NAME=$DEFAULT
-	confirm "Start domoticz with container-name $CONTAINER_NAME ? " ||
+	confirm "Do you want to set the container name to $CONTAINER_NAME ? " ||
 	while true
 	do
 		echo -n "Enter container name (only letters, digits or - or _ and starting with a letter)" >>/dev/tty
@@ -39,8 +39,60 @@ get_containername(){
 			echo "Illegal name!" >>/dev/tty
 			continue
 		}
-		confirm "Start domoticz with container-name $CONTAINER_NAME ? " && break
+		confirm "Do you want to set the container name to $CONTAINER_NAME ? " && break
 	done
 	echo $CONTAINER_NAME
 }
+
+#List of supported languages (used for profile)
+
+LANGUAGES="ca-Catalan
+cs-Czech
+de-German
+fr-French
+el-Greek
+en-English
+es-Spanish
+hi-Hindi
+it-Italian
+nl-Dutch
+pl-Polish
+pt-Portuguese
+ru-Russian
+sv-Swedish
+vi-Vietnamese
+zh-Chinese"
+
+check_lang(){
+	OK=""
+	for LANGLINE in $LANGUAGES
+	do
+	  LANGCODE=$(echo $LANGLINE|sed 's/-.*//')
+	  OK="$OK:$LANGCODE:"
+	done
+	echo $OK|grep -q $1
+}
+
+get_rhasspy_language(){
+        DEFAULT=$1
+        LANGUAGE=$DEFAULT
+        confirm "Do you want to set the profile name to $LANGUAGE ? " ||
+        while true
+        do
+		for LANG in $LANGUAGES
+		do
+			echo "	$LANG" |sed 's/-/ /' >>/dev/tty
+		done
+                echo -n "Enter language code: " >>/dev/tty
+                read LANGUAGE
+                [[ -z "$LANGUAGE" ]] && LANGUAGE=$DEFAULT
+                check_lang $LANGUAGE || {
+                        echo "Language $LANGUAGE not supported" >>/dev/tty
+                        continue
+                }
+                confirm "Do you want to set the profile name to $LANGUAGE ? " && break
+        done
+        echo $LANGUAGE
+}
+
 

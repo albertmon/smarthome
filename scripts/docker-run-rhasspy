@@ -1,0 +1,27 @@
+#!/bin/bash
+
+. $(dirname $0)/functions.sh
+
+[[ ! -z "$1" ]] && SHOW=echo
+
+RHASSPY=~/rhasspy
+
+[[ -d $RHASSPY ]] || { confirm "Do you want me to create directory $RHASSPY ?" && mkdir $RHASSPY || exit 1 ; }
+
+RHASSPY_PROFILE=$(get_rhasspy_language en)
+CONTAINER_NAME=$(get_containername rhasspy_$RHASSPY_PROFILE)
+
+confirm "Do you want to start Rhasspy with profile '$RHASSPY_PROFILE' and containername '$CONTAINER_NAME' ? " &&
+docker run -d -p 12101:12101 \
+	--name rhasspy \
+	--restart unless-stopped \
+	-v "$RHASSPY/profiles:/profiles" \
+	-v "/etc/localtime:/etc/localtime:ro" \
+	--device /dev/snd:/dev/snd \
+	--name=$CONTAINER_NAME \
+	rhasspy/rhasspy \
+	--user-profiles /profiles \
+	--profile $RHASSPY_PROFILE
+
+exit 0
+
