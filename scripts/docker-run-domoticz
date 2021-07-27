@@ -1,30 +1,8 @@
 #!/bin/bash
 
-confirm(){
-        echo -n "$1 (Y/n)"
-        read ans
-        case $ans in
-        [nN]*) return 1;;
-        esac
-        return 0
-}
+. $(dirname $0)/functions.sh
 
-# Based on script from https://unix.stackexchange.com/users/4358/phemmer
-get_devices(){
-        for sysdevpath in $(find /sys/bus/usb/devices/usb*/ -name dev)
-        do
-                syspath="${sysdevpath%/dev}"
-                devname="$(udevadm info -q name -p $syspath)"
-                # echo devname=$devname >&2
-                [[ "$devname" == "bus/"* ]] && continue
-                [[ "$devname" =~ "input/"* ]] && continue
-                unset ID_SERIAL
-                eval "$(udevadm info -q property --export -p $syspath)"
-                [[ -z "$ID_SERIAL" ]] && continue
-                # echo ID_SERIAL=$ID_SERIAL >&2
-                echo "--device /dev/$devname "
-        done
-}
+[[ ! -z "$1" ]] && SHOW=echo
 
 DEVICES=$(get_devices)
 
@@ -33,11 +11,12 @@ DOMOTICZ=~/domoticz
 
 TZ=$(cat /etc/timezone)
 
-CONTAINER_NAME=domoticz_1
+CONTAINER_NAME=$(get_containername domoticz)
 
-# Run container
+echo "container name = '$CONTAINER_NAME' "
 
-docker run -d \
+$SHOW docker run -d \
+    --restart unless-stopped \
     -p 8080:8080 \
     -p 8443:443 \
     -v $DOMOTICZ:/opt/domoticz/userdata \
