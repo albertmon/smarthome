@@ -2,26 +2,83 @@
 
 . $(dirname $0)/functions.sh
 
-[[ ! -z "$1" ]] && SHOW=echo
+#List of supported languages (used for profile)
 
-RHASSPY=~/rhasspy
+LANGUAGES="ca-Catalan
+cs-Czech
+de-German
+fr-French
+el-Greek
+en-English
+es-Spanish
+hi-Hindi
+it-Italian
+nl-Dutch
+pl-Polish
+pt-Portuguese
+ru-Russian
+sv-Swedish
+vi-Vietnamese
+zh-Chinese"
 
-[[ -d $RHASSPY ]] || { confirm "Do you want me to create directory $RHASSPY ?" && mkdir $RHASSPY || exit 1 ; }
+check_lang(){
+	OK=""
+	for LANGLINE in $LANGUAGES
+	do
+	  LANGCODE=$(echo $LANGLINE|sed 's/-.*//')
+	  OK="$OK:$LANGCODE:"
+	done
+	echo $OK|grep -q $1
+}
 
+get_rhasspy_language(){
+        DEFAULT=$1
+        LANGUAGE=$DEFAULT
+        confirm "Do you want to set the profile name to $LANGUAGE ? " ||
+        while true
+        do
+		for LANG in $LANGUAGES
+		do
+			echo "	$LANG" |sed 's/-/ /' >>/dev/tty
+		done
+                echo -n "Enter language code: " >>/dev/tty
+                read LANGUAGE
+                [[ -z "$LANGUAGE" ]] && LANGUAGE=$DEFAULT
+                check_lang $LANGUAGE || {
+                        echo "Language $LANGUAGE not supported" >>/dev/tty
+                        continue
+                }
+                confirm "Do you want to set the profile name to $LANGUAGE ? " && break
+        done
+        echo $LANGUAGE
+}
+
+
+#Defaults
+
+RHASSPY=~/.config/rhasspy
+RHASSPY_DATA="$RHASSPY/profiles"
+CONTAINER_NAME=domoticz
+ENVIRONMENT='-v "/etc/localtime:/etc/localtime:ro"'
+PORTS="12101:12101"
+REPOSITORY=rhasspy/rhasspy
 RHASSPY_PROFILE=$(get_rhasspy_language en)
-CONTAINER_NAME=$(get_containername rhasspy_$RHASSPY_PROFILE)
+FIXED_ARG=""
 
-confirm "Do you want to start Rhasspy with profile '$RHASSPY_PROFILE' and containername '$CONTAINER_NAME' ? " &&
-docker run -d -p 12101:12101 \
-	--name rhasspy \
-	--restart unless-stopped \
-	-v "$RHASSPY/profiles:/profiles" \
-	-v "/etc/localtime:/etc/localtime:ro" \
-	--device /dev/snd:/dev/snd \
-	--name=$CONTAINER_NAME \
-	rhasspy/rhasspy \
-	--user-profiles /profiles \
-	--profile $RHASSPY_PROFILE
+# Check arguments
+RESTART_ARG=$(get_restart)
+DEVICES_ARG="--device /dev/snd:/dev/snd"
+VOLUMES_ARG=$(get_volumes $RHASSPY_DATA:/profiles)
+PORTMAP_ARG=$(get_ports "$PORTS")
+CONTAINER_NAME_ARG=$(get_containername rhasspy_$RHASSPY_PROFILE)
+CONTAINER_ARGS="--user-profiles /profiles --profile $RHASSPY_PROFILE"
+
+# Run docker
+ALL_ARGS="$RESTART_ARG $PORTMAP_ARG $VOLUMES_ARG $DEVICES_ARG"
+ALL_ARGS="$ALL_ARGS $CONTAINER_NAME_ARG $ENVIRONMENT"
+ALL_ARGS="$ALL_ARGS $REPOSITORY $CONTAINER_ARGS"
+confirm "Do you want to start Rhasspy with arguments '$ALL_ARGS' ? " &&
+docker run -d $ALL_ARGS
 
 exit 0
 

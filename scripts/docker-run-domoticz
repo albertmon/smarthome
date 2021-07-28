@@ -2,25 +2,26 @@
 
 . $(dirname $0)/functions.sh
 
-DEVICES=$(get_devices)
+#Defaults
 
-DOMOTICZ=~/domoticz
-[[ -d $DOMOTICZ ]] || { confirm "Do you want me to create directory '$DOMOTICZ' ?" && mkdir $DOMOTICZ || exit 1 ; }
+DOMOTICZ_DATA=~/domoticz
+CONTAINER_NAME=domoticz
+ENVIRONMENT="-e TZ=$(cat /etc/timezone)"
+PORTS="8080:8080 8443:443"
+REPOSITORY=domoticz/domoticz
 
-TZ=$(cat /etc/timezone)
+# Check arguments
+RESTART_ARG=$(get_restart)
+DEVICES_ARG=$(get_devices)
+VOLUMES_ARG=$(get_volumes $DOMOTICZ_DATA:/opt/domoticz/userdata)
+PORTMAP_ARG=$(get_ports "$PORTS")
+CONTAINER_NAME_ARG=$(get_containername domoticz)
+CONTAINER_ARGS=""
 
-CONTAINER_NAME=$(get_containername domoticz)
-
-confirm "Do you want to start Domoticz with devices '$DEVICES' and containername '$CONTAINER_NAME' ? " &&
-docker run -d \
-    --restart unless-stopped \
-    -p 8080:8080 \
-    -p 8443:443 \
-    -v $DOMOTICZ:/opt/domoticz/userdata \
-    -e TZ=$TZ \
-    $DEVICES \
-    --name=$CONTAINER_NAME \
-    domoticz/domoticz
+# Run docker
+ALL_ARGS="$RESTART_ARG $PORTMAP_ARG $VOLUMES_ARG $DEVICES_ARG $CONTAINER_NAME_ARG $ENVIRONMENT $REPOSITORY $CONTAINER_ARGS"
+confirm "Do you want to start Domoticz with arguments '$ALL_ARGS' ? " &&
+docker run -d $ALL_ARGS
 
 exit 0
 
