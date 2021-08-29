@@ -99,14 +99,18 @@ def doGetTime():
     speech = intentconfig.get_text(intentconfig.Text.GetTime_Response)
     intentjson.set_speech(speech.format(HOURS=hour, MINUTES=minutes))
 
-def doGetDate():
-    now = datetime.datetime.now()
+def getDateStrings(date_time):
     weekdays = intentconfig.get_text(intentconfig.Text.WEEKDAY)
     months = intentconfig.get_text(intentconfig.Text.MONTH)
-    weekday = weekdays[now.weekday()]  # monday = 0
-    day = now.day
-    month = months[now.month-1]  # index starts at 0
-    year = now.year
+    weekday = weekdays[date_time.weekday()]  # monday = 0
+    day = date_time.day
+    month = months[date_time.month-1]  # index starts at 0
+    year = date_time.year
+    return (weekday, day, month, year)
+
+def doGetDate():
+    now = datetime.datetime.now()
+    (weekday, day, month, year) = getDateStrings(now)
     speech = intentconfig.get_text(intentconfig.Text.GetDate_Response).\
         format(WEEKDAY=weekday, DAY=day, MONTH=month, YEAR=year)
 
@@ -115,7 +119,6 @@ def doGetDate():
 def doTimer():
     minutes = int(intentjson.get_slot_value("minutes","0"))
     seconds = int(intentjson.get_slot_value("seconds","0"))
-        
     PATH = os.getenv("RHASSPY_PROFILE_DIR") + "/handler/"
     command = PATH + 'timer.sh'
     seconds_to_sleep = minutes*60 + seconds
@@ -168,7 +171,7 @@ def getStringAsDate(s):
         date = None
     return date
 
-def doGetAge():
+def getNameAndBirthdate():
     name = intentjson.get_raw_value_for("birthday")
     if not name:
         error_missing_parameter("birthday","GetAge")
@@ -179,8 +182,20 @@ def doGetAge():
     birthdate = getStringAsDate(birthday)
     if not birthdate:
         error_missing_parameter("birthday","GetAge")
+    return (name, birthdate)
+
+def doBirthDay():
+    (name, birthdate) = getNameAndBirthdate()
+    (weekday, day, month, year) = getDateStrings(birthdate)
+    speech = intentconfig.get_text(intentconfig.Text.GetBirthDate_Response).\
+        format(WEEKDAY=weekday, DAY=day, MONTH=month, YEAR=year, NAME=name)
+
+    intentjson.set_speech(speech)
+
+def doGetAge():
+    (name, birthdate) = getNameAndBirthdate()
     today = datetime.date.today()
-    age = today.year - birthdate.year 
+    age = today.year - birthdate.year
     if ((today.month, today.day) < (birthdate.month, birthdate.day)):
         age = age - 1  # birthday not yet passed
     speech = intentconfig.get_text(intentconfig.Text.GetAge_Response)
@@ -209,10 +224,10 @@ def doBirthDays():
         elif birthdate.month == (today.month+1)%12 \
             and birthdate.day <= today.day:  # birthday next month?:
             born_this_month[name] = birthdate
-            
+ 
     log.debug(f"birthday_persons:[{birthday_persons}]\n"\
         + f"   born_this_month:[{str(born_this_month)}]")
-        
+
     if len(birthday_persons) == 1 :
         speech = intentconfig.get_text(intentconfig.Text.GetBirthDay_Single)
         speech = speech.format(NAME=birthday_persons[0])
@@ -230,14 +245,14 @@ def doBirthDays():
         names = ""
         and_string = ": " + intentconfig.get_text(intentconfig.Text.AND) + " "
         for name, birthdate in born_this_month.items():
-            datestr = f" {birthdate.day} {months[birthdate.month-1]} " 
+            datestr = f" {birthdate.day} {months[birthdate.month-1]} "
             if names:
                 names = names + and_string
             names = names + list_string.format(NAME=name,DATE=datestr)
             log.debug(f"names={names}, name={name}, DATE={datestr}")
         speech = speech + ": " + text + " " + names
 
-    if not speech: 
+    if not speech:
         speech = intentconfig.get_text(intentconfig.Text.GetNoBirthDay)
 
     intentjson.set_speech(speech)

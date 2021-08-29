@@ -32,8 +32,8 @@ Text = Enum('Text',
             'DecimalPoint AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
             ' ERROR Intent_Error DuckDuckGo_ERROR SENTENCES_ERROR' +
             ' Timer_Response Timer_ERROR GetTime_Response' +
-            ' GetDate_Response GetAge_Response GetBirthDay_Single' +
-            ' GetBirthDay_Multiple  GetBirthDay_Month' +
+            ' GetDate_Response GetAge_Response GetBirthDate_Response' +
+            ' GetBirthDay_Single GetBirthDay_Multiple GetBirthDay_Month' +
             ' GetBirthDay_MonthList GetNoBirthDay')
 DomoText = Enum('DomoText',
             'Error GetWind_Response GetWind_Direction')
@@ -74,6 +74,7 @@ text = {
     Text.GetTime_Response: "the time is  {HOURS} hours and {MINUTES} minutes",
     Text.GetDate_Response: "today is  {WEEKDAY} {MONTH} {DAY} {YEAR}",
     Text.GetAge_Response: ".birthday. is {YEARS} old",
+    Text.GetBirthDate_Response: "{NAME} is born on {WEEKDAY} {MONTH} {DAY} {YEAR}",
     Text.GetBirthDay_Single: "Today is {NAME} s birthday",
     Text.GetBirthDay_Multiple: "Today is the birthay of: ",
     Text.GetBirthDay_Month: "birthdays are coming for: ",
@@ -125,6 +126,7 @@ text = {
     Text.GetTime_Response: "Het is nu  {HOURS}  uur en {MINUTES} minuten",
     Text.GetDate_Response: "het is vandaag {WEEKDAY} {DAY} {MONTH} {YEAR}",
     Text.GetAge_Response: ".birthday. is {YEARS}",
+    Text.GetBirthDate_Response: "{NAME} is geboren op {WEEKDAY} {DAY} {MONTH} {YEAR}",
     Text.GetBirthDay_Single: "Vandaag is de verjaardag van: {NAME}",
     Text.GetBirthDay_Multiple: "Vandaag is de verjaardag van: ",
     Text.GetBirthDay_Month: "komende verjaardagen zijn:  ",
