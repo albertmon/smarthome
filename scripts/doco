@@ -1,0 +1,118 @@
+#!/bin/bash
+#Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+#   ---------------------------------------------------------------------------
+#   Programming is the result of learning from others and making errors.
+#   A good programmer often follows the tips and tricks of better programmers.
+#   The solution of a problem seldom leads to new or original code.
+#   So any resemblance to already existing code is purely coincidental
+#
+
+
+# doco - simple front end for docker-compose
+# Searches for directory with docker-compose.yml, where it will start docker-compose
+# If more than one exists docker-compose starts in the current directory
+
+$DEBUG     # Used to debug the script, e.g. by setting DEBUG='set -x'
+
+if [ "$1" == "--list" ]
+then
+		echo "dcup"
+		echo "dcdown"
+		echo "dcstart"
+		echo "dcpause"
+		echo "dcunpause"
+		echo "dcstop"
+		echo "dcrestart"
+		echo "dcps"
+		echo "dctop"
+		echo "dcimages"
+		echo "dclog"
+		echo "dcconfig"
+		exit
+fi 
+
+# If name starts with dc use rest of the name as param
+NAME=$(basename $0)
+ARG=`echo $NAME|sed 's/dc//'`
+[ -z "$ARG" -o "$ARG" = "doco" ] && { ARG=$1; shift ; }
+
+# docker-compose.yml must exist (when no argument help is given)
+HELP=$(echo $* |grep -ci help)
+if [ $HELP -gt 0 ]
+then
+	set -- --help
+else
+	HELP=
+fi
+YML_NAME=docker-compose.yml
+[ -f $YML_NAME -o -n "$HELP" ] || {
+	LIST=$(find $HOME -name $YML_NAME -print)
+	[ $(echo $LIST|wc -w) -ne 1 ] && {
+		echo "More than 1 file '$YML_NAME' found"
+		echo "Directories with $YML_NAME are:"
+		echo $LIST| sed "s|/$YML_NAME *|\n|g"
+		echo "change to the correct directory"
+		exit
+	}
+	DIR=$(dirname $LIST)
+	cd $DIR
+	echo "Using file $YML_NAME in $(pwd)."
+}
+
+case "$ARG" in
+up)	docker-compose up -d $* ;;
+start)	docker-compose start $* ;;
+pause)	docker-compose pause $* ;;
+unpause)	docker-compose unpause $* ;;
+stop)	docker-compose stop $* ;;
+restart)	docker-compose restart $* ;;
+down)	docker-compose down $* ;;
+
+ps)	docker-compose ps -a $* ;;
+t*)	docker-compose top $* ;;
+i*)	docker-compose images $* ;;
+l*)	docker-compose logs $* ;;
+c*)	docker-compose config $* ;;
+*)
+	cat <<EOF
+ $NAME - simple front end for docker-compose
+ 
+ If the current directory contains docker-compose.yml
+ $NAME will start in the current directory. 
+ Otherwise $NAME searches for directory with a docker-compose.yml. 
+ If more than one exists you must cd to the one you want to use.
+
+Usage: doco { up | start | pause | unpause | stop | restart | down |
+		ps | t[op] | i[mages] | l[ogs] | c[onfig] }
+  or: dcup | dcdown | dcstart | dcpause | dcunpause | dcstop | dcrestart |
+		dcps | dctop | dcimages | dclog | dcconfig
+
+  up                 Create and start containers
+  start              Start services
+  pause              Pause services
+  unpause            Unpause services
+  stop               Stop services
+  restart            Restart services
+  down               Stop and remove resources
+  ps                 List containers
+  top                Display the running processes
+  images             List images
+  logs               View output from containers
+  config             Validate and view the Compose file
+EOF
+	;;
+esac
+
