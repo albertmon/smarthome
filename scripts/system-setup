@@ -28,6 +28,7 @@
 do_execute() {
 	echo "======= executing ======" "$@" "========================="
 	"$@"
+	echo
 	echo "======= executing ======" "$@" "========= done =========="
 }
 
@@ -42,17 +43,26 @@ exec_exists() {
 	fi
 }
 
+install_docker() {
+	GET_DOCKER=/tmp/get-docker.sh
+	curl -fsSL https://get.docker.com -o $GET_DOCKER
+	sh $GET_DOCKER
+	usermod -aG docker pi
+	# rm $GET_DOCKER
+}
+
 main (){
 	echo "Running system-check"
 	do_execute apt-get update
-	do_execute apt full-upgrade
+	do_execute apt-get upgrade
 
 	# Install docker-compose  
 	# The simplest way to install docker-compose (after installing docker) is by using pip (package installer for Python).  
 	# Make sure you have pip3 installed
-	exec_exists docker || do_execute apt install docker 
-	exec_exists pip3 || do_execute apt install python3-pip
-	exec_exists docker-compose || do_execute pip3 install docker-compose  
+	exec_exists docker || do_execute install_docker 
+	exec_exists pip3 || do_execute apt-get install python3-pip
+	exec_exists docker-compose || do_execute pip3 install docker-compose
+	systemctl enable docker
 }
 
 if [ $(whoami) == root ]
@@ -60,7 +70,7 @@ then
         main
 else
         echo "This script needs root privileges, Switching to root..."
-        sudo --preserve-env=HOME $0
+        sudo $0
 fi
 
 
