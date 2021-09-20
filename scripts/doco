@@ -37,6 +37,7 @@ then
 		echo "dcstop"
 		echo "dcrestart"
 		echo "dcps"
+		echo "dcsh"
 		echo "dctop"
 		echo "dcimages"
 		echo "dclog"
@@ -82,6 +83,31 @@ restart)	docker-compose restart $* ;;
 down)	docker-compose down $* ;;
 
 ps)	docker-compose ps -a $* ;;
+sh)
+	CONTAINER_NAMES="$(docker ps --format '{{.Names}}' | sed 's/ /\\n/'|sort)"
+
+	NR_OF_CONTAINERS_FOUND=$(echo -e "$CONTAINER_NAMES"|grep "^$1"|wc -l)
+	CONTAINER_NAME=$(echo -e "$CONTAINER_NAMES"|grep "^$1")
+	case $NR_OF_CONTAINERS_FOUND in
+	1)
+		echo "Starting shell in $CONTAINER_NAME..."
+		docker exec -it $CONTAINER_NAME /bin/sh
+		;;
+	0)
+
+		echo "Container <$1> not found."
+		echo "Available containers:"
+		docker ps --format ' - {{.Names}}\t({{.State}})'|sort
+		;;
+	*)
+		echo "multiple matches. Choose 1 of"
+		for NAME in $CONTAINER_NAME
+		do
+			echo " - $NAME"
+		done
+		;;
+	esac
+	;;
 t*)	docker-compose top $* ;;
 i*)	docker-compose images $* ;;
 l*)	docker-compose logs $* ;;
@@ -108,6 +134,8 @@ Usage: doco { up | start | pause | unpause | stop | restart | down |
   restart            Restart services
   down               Stop and remove resources
   ps                 List containers
+  sh                 Start a shell in one of the containers
+                     Required argument: start of the name of the container
   top                Display the running processes
   images             List images
   logs               View output from containers
