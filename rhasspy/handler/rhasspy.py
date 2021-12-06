@@ -25,34 +25,44 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 import json
 import requests
 import logging
-import intentconfig
 
 log = logging.getLogger(__name__)
 
 # =============================================================================
-# Conversations/Confirmation using rhasspy api
+# Conversations/Confirmation/Update Slots using rhasspy api
 # =============================================================================
 class Rhasspy:
+    HEADERS_JSON = {"Content-Type": "application/json"}
+    HEADERS_TEXT = {"Content-Type": "text/plain"}
+
     def __init__(self, url):
         self.url = url+"/api/"
 
-    def do_post_rhasspy(self, url, data=""):
-        log.debug("Post data to rhasspy_url:"+data)
+    def do_post_rhasspy(self, url, data="", headers=HEADERS_TEXT):
+        log.debug(f"Post data to rhasspy. url:{url}, data=[{data}], headers={headers}")
         try:
-            res = requests.post(url, data=data)
+            res = requests.post(url, data=data, headers=headers)
             if res.status_code != 200:
-                log.info("do_post(Url:[%s]\nResult:%s, text:[%s]"
-                         % (url, res.status_code, res.text))
+                log.info(f"do_post(Url:[{url}]\n"+
+                    f"Result:{res.status_code}, text:[{res}]")
         except ConnectionError:
-            log.warning("ConnectionError for url [%s]" % (url))
+            log.warning(f"ConnectionError for url [{url}]")
             return None
 
-        # log.debug("Post Result:"+res.text)
+        if log.isEnabledFor(logging.DEBUG):
+            # check for header: content-type: audio/wav 
+            if 'content-type' in res.headers:
+                content_type = res.headers['content-type']
+            if content_type == 'audio/wav':
+                log.debug(f"Post Result:audio")
+            else:
+                log.debug(f"Post Result:{res.text}")
         return(res)
 
 
     def rhasspy_speak(self,question):
         self.do_post_rhasspy(self.url+"text-to-speech",question)
+
 
     def rhasspy_listen_for_intent(self):
         res = self.do_post_rhasspy(self.url+"listen-for-command?nohass=true")
@@ -65,3 +75,18 @@ class Rhasspy:
         log.debug(f"Reply={str(res)}")
         return("intent" in res and res["intent"]["name"] == "Confirm")
 
+
+    def rhasspy_add_slots(self,slots):
+        self.do_post_rhasspy(self.url+"slots?overwriteAll=false",slots, HEADERS_JSON)
+
+
+    def rhasspy_replace_slots(self,slots):
+        log.info(f"Slots=<{slots}>")
+        self.do_post_rhasspy(self.url+"slots?overwriteAll=true",slots, HEADERS_JSON)
+
+
+    def rhasspy_train(self):
+        self.do_post_rhasspy(self.url+"train")
+
+
+# End Of File
