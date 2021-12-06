@@ -69,11 +69,13 @@ class IntentDomo:
         self.domoticz_url = domoticz_url
         self.intentjson = intentjson
 
-    def get_domoticz(self,command):
+    def get_domoticz(self,command,firstOnly=True):
         url = self.domoticz_url+command
-        log.debug("Url:"+url)
+        timeout=3.05
+        log.debug(f"Url:{url}, timeout={timeout}")
         try:
-            res = requests.get(url)
+            res = requests.get(url, timeout=(0.5, timeout))
+            log.debug(f"request returned:({res})")
             if res.status_code != 200:
                 log.info(f"Url:[{url}\nResult:{res.status_code}, text:{res.text}")
                 return None
@@ -81,14 +83,63 @@ class IntentDomo:
             log.warning(f"ConnectionError for {url}")
             return None
 
+        except Timeout:
+            log.warning(f"Timeout for {url}")
+            return None
+        except:
+            log.warning("Unexpected error:", sys.exc_info()[0])
+            return None
+
         log.debug(str(res))
         res_json = json.loads(res.text)
         log.debug(str(res_json))
 
         if "result" in res_json:
-            return(res_json["result"][0])
+            if firstOnly:
+                return(res_json["result"][0])
+            return(res_json["result"])
 
         return(res_json)
+
+
+    def get_domo_devices(self,favorite=1):
+        devices = []
+        res = self.get_domoticz(f"type=devices&filter=all&used=true&order=Name&favorite={favorite}",firstOnly=False)
+        log.debug(f"res={res}")
+            
+        for device in res:
+            log.debug(f"get_domo_devices: dev={device}")
+            if "idx" not in device:
+                continue # Should never happen
+            if 'Type' not in device:
+                continue # Should never happen
+            device_idx = int(device["idx"])
+            device_type = device["Type"]
+            
+            if "SwitchType" in device:
+                switch_type = device["SwitchType"]
+            else:
+                switch_type = ""
+
+            if "Description" in device:
+                device_desc = device["Description"]
+            else:
+                device_desc = ""
+
+            if "Name" in device:
+                device_name = device["Name"]
+            else:
+                device_name = ""
+
+            dev_info = {"idx":device_idx,
+                            "Type":device_type,
+                            "SwitchType":switch_type,
+                            "Name":device_name,
+                            "Description":device_desc}
+            devices.append(dev_info)
+            log.debug(f"get_domo_devices:added dev_info: {dev_info}.")
+
+        return devices
 
     def domoInfo(self, idx,field_name,default=""):
         res_json = self.get_domoticz(f"type=devices&rid={idx}")
@@ -187,10 +238,13 @@ class IntentDomo:
             speed = res_json["Speed"]
             direction = res_json["DirectionStr"]
             log.debug(f"Received: {speed},{direction}")
+            (beaufort,text) = intentconfig.get_beauforttext(float(speed))
+            log.debug(f"after beaufort: {beaufort},{speed},{text}")
             speed = intentconfig.replace_decimal_point(speed)
             speech = intentconfig.get_text(intentconfig.DomoText.GetWind_Response)
             direction = intentconfig.get_text(intentconfig.DomoText.GetWind_Direction, direction)
-            self.intentjson.set_speech(speech.format(SPEED=speed, DIRECTION=direction))
+            self.intentjson.set_speech(speech.format(SPEED=speed, DIRECTION=direction,
+                BEAUFORT=beaufort, BEAUFORT_TEXT=text ))
         else:
             log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
                 + f"\n-----json--------\n{res_json}\n-----end json--------\n")
@@ -256,5 +310,4 @@ class IntentDomo:
 
         self.intentjson.set_speech(speech)
 
-
-
+# End Of File

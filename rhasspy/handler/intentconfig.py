@@ -36,7 +36,7 @@ Text = Enum('Text',
             ' GetBirthDay_Single GetBirthDay_Multiple GetBirthDay_Month' +
             ' GetBirthDay_MonthList GetNoBirthDay')
 DomoText = Enum('DomoText',
-            'Error GetWind_Response GetWind_Direction')
+            'Error GetWind_Response GetWind_Direction GetWind_Beaufort')
 KodiText = Enum('KodiText',
             'AskPlayConfirmation SayNoMusicFound SayPlayConfirmation' +
             ' SayNoPlayConfirmation WhatsPlaying_Response WhatsPlaying_Error')
@@ -82,7 +82,7 @@ text = {
     Text.GetNoBirthDay: "there are no birthdays in the coming month",
     DomoText.Error : "no answer received from domoticz",
     DomoText.GetWind_Response : \
-        "the wind is blowing {SPEED} meter per second from the {DIRECTION}",
+        "the wind is blowing {SPEED} meter per second from the {DIRECTION}. Wind strength is {BEAUFORT} beaufort. {BEAUFORT_TEXT}",
     DomoText.GetWind_Direction : {
             "N": "north",
             "NNE": "north north east",
@@ -101,6 +101,21 @@ text = {
             "NW": "north west",
             "NNW": "north north west"
         },
+    DomoText.GetWind_Beaufort : (
+        (0,0.5,"Calm","Smoke rises vertically."),
+        (1,1.5,"Light air","Direction shown by smoke drift but not by wind vanes."),
+        (2,3.3,"Light breeze","Wind felt on face; leaves rustle; wind vane moved by wind."),
+        (3,5.5,"Gentle breeze","Leaves and small twigs in constant motion; light flags extended."),
+        (4,7.9,"Moderate breeze","Raises dust and loose paper; small branches moved."),
+        (5,10.7,"Fresh breeze","Small trees in leaf begin to sway; crested wavelets form on inland waters."),
+        (6,13.8,"Strong breeze","Large branches in motion; whistling heard in telegraph wires; umbrellas used with difficulty."),
+        (7,17.1,"High wind","Whole trees in motion; inconvenience felt when walking against the wind."),
+        (8,20.7,"Gale","Twigs break off trees; generally impedes progress."),
+        (9,24.4,"Strong gale","Slight structural damage (chimney pots and slates removed)."),
+        (10,28.4,"Storm","Seldom experienced inland; trees uprooted; considerable structural damage."),
+        (11,32.6,"Violent storm","Very rarely experienced; accompanied by widespread damage."),
+        (12,999,"Hurricane force","Devastation.")
+        ),
     KodiText.AskPlayConfirmation: "do you want me to play {TITLE} of {ARTIST} ?",
     KodiText.SayNoMusicFound: "i cannot find {ALBUM} of {ARTIST}",
     KodiText.SayPlayConfirmation: "i am going to play {TITLE} van {ARTIST}",
@@ -134,7 +149,7 @@ text = {
     Text.GetNoBirthDay: "de rest van de maand en de volgende maand zijn er geen verjaardagen",
 
     DomoText.Error : "Geen of fout antwoord van domoticz ontvangen",
-    DomoText.GetWind_Response : "Het waait {SPEED} meter per seconde uit {DIRECTION}elijke richting",
+    DomoText.GetWind_Response : "Het waait {SPEED} meter per seconde uit {DIRECTION}elijke richting. Het waait {BEAUFORT} bo for. {BEAUFORT_TEXT}",
     DomoText.GetWind_Direction : {
             "N": "noord",
             "NNE": "noord noord oost",
@@ -153,6 +168,21 @@ text = {
             "NW": "noord west",
             "NNW": "noord noord west"
         },
+    DomoText.GetWind_Beaufort :(
+            (0,0.2,"windstilte","rook stijgt recht of bijna recht omhoog"),
+            (1,1.5,"zwakke wind","windrichting goed af te leiden uit rookpluimen"),
+            (2,3.3,"zwakke wind","wind merkbaar in gezicht"),
+            (3,5.4,"matige wind","stof waait op"),
+            (4,7.9,"matige wind","haar in de war, kleding flappert"),
+            (5,10.7,"vrij krachtige wind","opwaaiend stof hinderlijk voor de ogen, gekuifde golven op meren en kanalen en vuilcontainers waaien om"),
+            (6,13.8,"krachtige wind","paraplu's met moeite vast te houden"),
+            (7,17.1,"harde wind","lastig tegen de wind in te lopen of fietsen"),
+            (8,20.7,"stormachtige wind","voortbewegen zeer moeilijk"),
+            (9,24.4,"storm","schoorsteenkappen en dakpannen waaien weg, kinderen waaien om"),
+            (10,28.4,"zware storm","grote schade aan gebouwen, volwassenen waaien om"),
+            (11,32.6,"zeer zware storm","enorme schade aan bossen"),
+            (12,999,"orkaan","verwoestingen")
+        ),
     KodiText.AskPlayConfirmation: "wil je dat ik {TITLE} van {ARTIST} ga afspelen ?",
     KodiText.SayNoMusicFound: "ik kan geen album {ALBUM} van {ARTIST} vinden",
     KodiText.SayPlayConfirmation: "ik ga {TITLE} van {ARTIST} afspelen",
@@ -162,12 +192,22 @@ text = {
     }
 }
 
+domo_rhasspy_type_map = {
+    "Wind":"util",
+    "Temp + Humidity" :"util",
+    "Usage":"util",
+    "P1 Smart Meter":"util",
+    "Dimmer":"dimmer",
+    "Light/Switch":"switch",
+    "Scene":"scene"
+}
+
 # ------------------------------------------------------------
 #     End of Configurable data
 #     Do not change below this line 
 #     Unless you know what your doing
 # ------------------------------------------------------------
- 
+
 
 def get_language():
     PROFILEDIR = os.getenv("RHASSPY_PROFILE_DIR",default="nl")
@@ -219,3 +259,53 @@ def get_slots(filename):
             date = line[1]
             slots[name] = date
     return slots
+
+
+def get_beauforttext(speed):
+    beaufort_data = get_text(DomoText.GetWind_Beaufort)
+    log.debug(f"get_beauforttext:beaufort_data={beaufort_data}.")
+
+    for line in beaufort_data:
+        if line[1]>speed:
+            wind = line
+            return (line[0],line[2]+", "+line[3])
+
+    return (0,text[lang][Text.ERROR])
+
+
+def get_rhasspy_domo_values(name,desc):
+    log.debug(f"get_slotvalues:name={name},desc={desc}.")
+    slotvalue = ""
+    if len(desc) > 0:
+        slotvalue = desc
+        log.debug(f"found Desc:{slotvalue}.")
+    elif len(name) > 0:
+        slotvalue = re.sub("^.*- ","",name)  # remove everyting before -
+        log.debug(f"found Name:{slotvalue}.")
+    slotvalue = slotvalue.strip()
+    if len(slotvalue) > 0:
+        if re.search("\(.*\)",slotvalue) is None:
+            slotvalue = f"({slotvalue})"
+        return slotvalue
+    return ""
+
+
+def get_rhasspy_domo_slots(domo_devices):
+    slots = { "switch": [],
+            "dimmer": [],
+            "scene": [],
+            "util": []}
+    for dev in domo_devices:
+        slot_value = get_rhasspy_domo_values(dev["Name"],dev["Description"])
+        slot_idx = dev["idx"]
+        slot_type = dev["Type"]
+        log.debug(f"slot_type={slot_type},slot_value={slot_value}")
+        if slot_type in domo_rhasspy_type_map:
+            slot_name = domo_rhasspy_type_map[slot_type]
+            slots[slot_name].append(f"{slot_value}:{slot_idx}")
+            slot_type = dev["SwitchType"]
+            if slot_type in domo_rhasspy_type_map:
+                slot_name = domo_rhasspy_type_map[slot_type]
+                slots[slot_name].append(f"{slot_value}:{slot_idx}")
+    return slots
+
