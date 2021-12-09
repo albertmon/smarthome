@@ -51,18 +51,24 @@ class IntentJSON:
             return self.jsonevent["slots"][slot_name]
         return default
 
-    def get_raw_value_for(self,entity_name):
+    def get_raw_value(self,entity_name):
         for entity in self.jsonevent["entities"]:
             if entity["entity"] == entity_name:
                 return entity["raw_value"]
-        return ""
+        return get_slot_value(entity_name)
 
+    '''
+        You can replace a slotname by its raw_value in the speech string
+        A slotname is marked by surrounding '.'
+        That's why we split the line on '.'
+        and toggle between is_var = False and True
+    '''
     def get_speech(self,text_to_speak):
         is_var = False
         new_speech = ""
         for text in text_to_speak.split('.'):
            if is_var:
-               new_speech = new_speech + self.get_raw_value_for(text)
+               new_speech = new_speech + self.get_raw_value(text)
            else:
                new_speech = new_speech + text
            is_var = not is_var

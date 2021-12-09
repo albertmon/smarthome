@@ -39,9 +39,9 @@ class Rhasspy:
         self.url = url+"/api/"
 
     def do_post_rhasspy(self, url, data="", headers=HEADERS_TEXT):
-        log.debug(f"Post data to rhasspy. url:{url}, data=[{data}], headers={headers}")
+        log.debug(f"Post data to rhasspy. url:{url}, data=[{data[:100]}], headers={headers}")
         try:
-            res = requests.post(url, data=data, headers=headers)
+            res = requests.post(url, data=data.encode("utf-8"), headers=headers)
             if res.status_code != 200:
                 log.info(f"do_post(Url:[{url}]\n"+
                     f"Result:{res.status_code}, text:[{res}]")
@@ -76,13 +76,20 @@ class Rhasspy:
         return("intent" in res and res["intent"]["name"] == "Confirm")
 
 
+    '''
+        To create slots (files) we use the Rhasspy API
+        The data to post is formatted in JSON like this:
+        {"slotname":["(speech):slotvalue", "(speech):slotvalue", "speech_slotvalue", ...}
+        We create/update the slots for slotname with the list of slot entries
+        DO NOT FORGET TO TRAIN!
+    '''
     def rhasspy_add_slots(self,slots):
-        self.do_post_rhasspy(self.url+"slots?overwriteAll=false",slots, HEADERS_JSON)
+        self.do_post_rhasspy(self.url+"slots?overwriteAll=false",slots, Rhasspy.HEADERS_JSON)
 
 
     def rhasspy_replace_slots(self,slots):
-        log.info(f"Slots=<{slots}>")
-        self.do_post_rhasspy(self.url+"slots?overwriteAll=true",slots, HEADERS_JSON)
+        log.info(f"Slots=<{slots[:100]}>")
+        self.do_post_rhasspy(self.url+"slots?overwriteAll=true",slots, Rhasspy.HEADERS_JSON)
 
 
     def rhasspy_train(self):

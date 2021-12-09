@@ -24,6 +24,8 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 
 from kodi import Kodi
 from rhasspy import Rhasspy
+from kodi_rhasspy import Kodi_Rhasspy
+
 import intentconfig
 import logging
 log = logging.getLogger(__name__)
@@ -76,33 +78,46 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
         rhasspy_url = intentconfig.get_url("Rhasspy")
         self.rhasspy = Rhasspy(rhasspy_url)
 
-    def play_albums(self, artist="", album="", genre=""):
+    def play_albums(self):
+        artist = self.intentjson.get_slot_value("artist")
+        album = self.intentjson.get_slot_value("album")
+        genre = self.intentjson.get_slot_value("genre")
+        artist_raw = self.intentjson.get_raw_value("artist")
+        album_raw = self.intentjson.get_raw_value("album")
         log.debug(f"play_albums:(artist={artist}, album={album}, genre={genre})")
         albums = self.kodi.get_albums(artist=artist, album=album, genre=genre)
 
         question = intentconfig.get_text(intentconfig.KodiText.AskPlayConfirmation).\
-            format(TITLE=album, ARTIST=artist)
+            format(TITLE=album_raw, ARTIST=artist_raw)
         if len(albums) == 0:
             log.debug("play_albums:no albums found")
             no_music_found = intentconfig.get_text(intentconfig.KodiText.SayNoMusicFound).\
-                format(TITLE=album, ARTIST=artist)
+                format(TITLE=album_raw, ARTIST=artist_raw)
             self.intentjson.set_speech(no_music_found)
         elif self.rhasspy.rhasspy_confirm(question ):
             confirmation = intentconfig.get_text(intentconfig.KodiText.SayPlayConfirmation).\
-                format(TITLE=album, ARTIST=artist)
+                format(TITLE=album_raw, ARTIST=artist_raw)
             self.intentjson.set_speech(confirmation)
             self.kodi.play_albums(albums)
         else:
             no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoPlayConfirmation)
             self.intentjson.set_speech(no_confirmation)
             
-    def play_songs(self, artist="", composer="", title="", selection="", genre=""):
+    def play_songs(self):
+        artist = self.intentjson.get_slot_value("artist")
+        composer = self.intentjson.get_slot_value("composer")
+        genre = self.intentjson.get_slot_value("genre")
+        title = self.intentjson.get_slot_value("title")
+        selection = self.intentjson.get_slot_value("selection")
         log.debug(f"play_songs:(artist={artist}, composer={composer}, title=={title},"\
             + f"selection={selection}, genre={genre})")
         songs = self.kodi.get_songs(artist, composer, title, selection, genre)
 
-        my_title = selection if title == "" else title
-        my_artist = composer if artist == "" else artist
+        if selection == "":
+            selection = intentconfig.get_text(intentconfig.KodiText.Music) 
+        my_title = selection if title == "" else self.intentjson.get_raw_value("title")
+        my_artist = self.intentjson.get_raw_value("composer")\
+                    if artist == "" else self.intentjson.get_raw_value("artist")
         question = intentconfig.get_text(intentconfig.KodiText.AskPlayConfirmation).\
             format(TITLE=my_title, ARTIST=my_artist)
         if len(songs) == 0:
@@ -121,18 +136,10 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
     # =================================================================================
 
     def doKodiSongs(self):
-        artist = self.intentjson.get_slot_value("artist")
-        composer = self.intentjson.get_slot_value("composer")
-        genre = self.intentjson.get_slot_value("genre")
-        title = self.intentjson.get_slot_value("title")
-        selection = self.intentjson.get_slot_value("selection")
-        self.play_songs(artist=artist, composer=composer, title=title, selection=selection, genre=genre)
+        self.play_songs()
 
     def doKodiAlbums(self):
-        artist = self.intentjson.get_slot_value("artist")
-        album = self.intentjson.get_slot_value("album")
-        genre = self.intentjson.get_slot_value("genre")
-        self.play_albums(artist=artist, album=album, genre=genre)
+        self.play_albums()
 
     def doKodiPauseResume(self):
         self.kodi.pause_resume()
@@ -168,4 +175,16 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
             answer = intentconfig.get_text(intentconfig.KodiText.WhatsPlaying_Error)
             self.intentjson.set_speech(answer)
 
+    def doKodiUpdateSlots(self):
+        question = intentconfig.get_text(intentconfig.KodiText.AskUpdateSlotsConfirmation)
+        if self.rhasspy.rhasspy_confirm(question):
+            kodi_rhasspy = Kodi_Rhasspy(self.kodi, self.rhasspy)
+            confirmation = intentconfig.get_text(intentconfig.KodiText.SayUpdateSlotsConfirmation)
+            self.intentjson.set_speech(confirmation)
+            kodi_rhasspy.create_slots_files()
+        else:
+            no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoUpdateSlotsConfirmation)
+            self.intentjson.set_speech(no_confirmation)
 
+
+# End of file

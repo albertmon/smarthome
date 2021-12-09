@@ -38,8 +38,11 @@ Text = Enum('Text',
 DomoText = Enum('DomoText',
             'Error GetWind_Response GetWind_Direction GetWind_Beaufort')
 KodiText = Enum('KodiText',
-            'AskPlayConfirmation SayNoMusicFound SayPlayConfirmation' +
-            ' SayNoPlayConfirmation WhatsPlaying_Response WhatsPlaying_Error')
+            'Music AskPlayConfirmation SayNoMusicFound SayPlayConfirmation' +
+            ' SayNoPlayConfirmation WhatsPlaying_Response WhatsPlaying_Error' +
+            ' AskUpdateSlotsConfirmation' +
+            ' SayUpdateSlotsConfirmation SayNoUpdateSlotsConfirmation')
+
 # ------------------------------------------------------------
 #     Configurable data
 # ------------------------------------------------------------
@@ -80,6 +83,7 @@ text = {
     Text.GetBirthDay_Month: "birthdays are coming for: ",
     Text.GetBirthDay_MonthList : " {NAME} on {DATE} ",
     Text.GetNoBirthDay: "there are no birthdays in the coming month",
+
     DomoText.Error : "no answer received from domoticz",
     DomoText.GetWind_Response : \
         "the wind is blowing {SPEED} meter per second from the {DIRECTION}. Wind strength is {BEAUFORT} beaufort. {BEAUFORT_TEXT}",
@@ -116,13 +120,19 @@ text = {
         (11,32.6,"Violent storm","Very rarely experienced; accompanied by widespread damage."),
         (12,999,"Hurricane force","Devastation.")
         ),
+
+    KodiText.Music: "music",
     KodiText.AskPlayConfirmation: "do you want me to play {TITLE} of {ARTIST} ?",
-    KodiText.SayNoMusicFound: "i cannot find {ALBUM} of {ARTIST}",
+    KodiText.SayNoMusicFound: "i cannot find music of {ARTIST}",
     KodiText.SayPlayConfirmation: "i am going to play {TITLE} van {ARTIST}",
     KodiText.SayNoPlayConfirmation: "okay no music",
     KodiText.WhatsPlaying_Response : "this is track {TITLE}, of the album, {ALBUM}, of, {ARTIST}",
-    KodiText.WhatsPlaying_Error: "i am sorry, but i do not know"
+    KodiText.WhatsPlaying_Error: "i am sorry, but i do not know",
+    KodiText.AskUpdateSlotsConfirmation: "do you want me to update the kodi library ?",
+    KodiText.SayUpdateSlotsConfirmation: "the update of the kodi library is done.",
+    KodiText.SayNoUpdateSlotsConfirmation: "i will leave kodi as it is"
     },
+
 "nl" : {
     Text.DecimalPoint: "komma",
     Text.AND: "en",
@@ -183,12 +193,17 @@ text = {
             (11,32.6,"zeer zware storm","enorme schade aan bossen"),
             (12,999,"orkaan","verwoestingen")
         ),
+
+    KodiText.Music: "muziek",
     KodiText.AskPlayConfirmation: "wil je dat ik {TITLE} van {ARTIST} ga afspelen ?",
-    KodiText.SayNoMusicFound: "ik kan geen album {ALBUM} van {ARTIST} vinden",
+    KodiText.SayNoMusicFound: "ik kan geen muziek van {ARTIST} vinden",
     KodiText.SayPlayConfirmation: "ik ga {TITLE} van {ARTIST} afspelen",
     KodiText.SayNoPlayConfirmation: "okee, dan niet",
     KodiText.WhatsPlaying_Response : "Dit is het nummer, {TITLE},van het album, {ALBUM}, van, {ARTIST}",
-    KodiText.WhatsPlaying_Error: "Ik weet het niet, sorry"
+    KodiText.WhatsPlaying_Error: "Ik weet het niet, sorry",
+    KodiText.AskUpdateSlotsConfirmation: "weet je zeker dat ik de kodi gegevens moet vurversen ?",
+    KodiText.SayUpdateSlotsConfirmation: "ik ben klaar met het vurversen van de kodi gegevens.",
+    KodiText.SayNoUpdateSlotsConfirmation: "ik zal kodi niet vurversen"
     }
 }
 
@@ -237,14 +252,23 @@ def replace_decimal_point(str_in):
 def get_instances(json):
     instances = {}
     if "Domo" in config["urls"]:
-        from intentdomo import IntentDomo
-        instances["Domo"] = IntentDomo(json)
+        try:
+            from intentdomo import IntentDomo
+            instances["Domo"] = IntentDomo(json)
+        except Exception as exc:
+            log.error(f"Exception instantiating Domo: {exc}")
     if "Kodi" in config["urls"]:
-        from intentkodi import IntentKodi
-        instances["Kodi"] = IntentKodi(json)
+        try:
+            from intentkodi import IntentKodi
+            instances["Kodi"] = IntentKodi(json)
+        except Exception as exc:
+            log.error(f"Exception instantiating Kodi: {exc}")
     if "SmartCity" in config["urls"]:
-        from intentsmartcity import IntentSmartCity
-        instances["SmartCity"] = IntentSmartCity(json)
+        try:
+            from intentsmartcity import IntentSmartCity
+            instances["SmartCity"] = IntentSmartCity(json)
+        except Exception as exc:
+            log.error(f"Exception instantiating SmartCity: {exc}")
     return instances
 
 def get_slots(filename):

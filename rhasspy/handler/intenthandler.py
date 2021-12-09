@@ -172,7 +172,7 @@ def getStringAsDate(s):
     return date
 
 def getNameAndBirthdate():
-    name = intentjson.get_raw_value_for("birthday")
+    name = intentjson.get_raw_value("birthday")
     if not name:
         error_missing_parameter("birthday","GetAge")
     birthday = intentjson.get_slot_value("birthday")

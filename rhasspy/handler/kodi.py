@@ -29,14 +29,13 @@ import re
 log = logging.getLogger(__name__)
 
 class Kodi:
-    def __init__(self, url, path=""):
+    def __init__(self, url):
         self.url = url+"/jsonrpc"
-        self.path = path
 
     def do_post(self, data):
         log.debug(f"Post data(url={self.url}:<{data}>")
         try:
-            res = requests.post(self.url, data=data,
+            res = requests.post(self.url, data=data.encode("utf-8"),
                                 headers={"Content-Type": "application/json"})
             if res.status_code != 200:
                 log.info("do_post(Url:[%s]\nResult:%s, text:[%s]"
@@ -151,7 +150,7 @@ class Kodi:
                     + '"value": "'+select+'"}'
                 comma = ","
         if genre != "":
-            data = data + ',{"field": "genre", "operator": "contains",'\
+            data = data + comma + '{"field": "genre", "operator": "contains",'\
                 + '"value": "'+genre+'"}'
         data = data + ']}'
         # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
@@ -186,214 +185,4 @@ class Kodi:
             self.add_song_to_playlist(song["songid"])
         self.start_play()
 
-    # 
-    # ========================================================================
-    # Methods to generate slots-files for Rhasspy
-    # ========================================================================
-    # Clean Albumtitle to match with filter
-    def clean_albumtitle_filter(self,albumtitle):
-        cleaned = albumtitle.lower()
-        # skip leading numbers followed by - with spaces
-        cleaned = re.sub('^[0-9 ]*-* *','',cleaned)
-        # remove [ until the end : [] give problems in kaldi (rhasspy)
-        cleaned = re.sub('\[.*','',cleaned)
-        # remove ( until the end : () give problems in kaldi (rhasspy)
-        cleaned = re.sub('\(.*','',cleaned) 
-        # remove leading and trailing spaces
-        cleaned = cleaned.strip()
-
-        return cleaned
-        
-    # Clean albumtitle to match with speech
-    def clean_albumtitle_speech(self,albumtitle):
-        cleaned = self.clean_albumtitle_filter(albumtitle)
-        # No.4 1 
-        cleaned = re.sub('[^a-z0-9]',' ',cleaned)
-        cleaned = re.sub('  *',' ',cleaned)
-
-        cleaned = cleaned.strip()
-
-        return cleaned
-
-    # Clean Tracktitle to match with filter
-    def clean_tracktitle_filter(self,tracktitle):
-        cleaned = tracktitle.lower()
-        # skip leading numbers followed by - with spaces
-        cleaned = re.sub('^[0-9 ]*-* *','',cleaned)
-        # remove leading composername followed by :
-        cleaned = re.sub('^[a-z]*:','',cleaned)
-        # keep only part before - or :
-        cleaned = re.sub('[-:].*','',cleaned)
-        # remove [ until the end
-        cleaned = re.sub('\[.*','',cleaned)
-        # remove ( until the end
-        cleaned = re.sub('\(.*','',cleaned) # () give problems in kaldi (rhasspy)
-        # remove Op. 23
-        cleaned = re.sub('^[a-z]+[. ]*[0-9]+ *[0-9]*','',cleaned)
-        cleaned = re.sub(' in (bes|cis|des|fis|ges|as|es|[a-g])* *(sharp|flat|moll|dur)* *(majeur|mineur|major|minor|maj|min|klein|groot)* *$',' ',cleaned)
-        cleaned = re.sub('(bes|cis|des|fis|ges|as|es|[a-g]) (sharp|flat|moll|dur|majeur|mineur|major|minor|maj|min|klein|groot)$',' ',cleaned)
-        cleaned = re.sub('([0-9])  *[0-9a-z]\.* .*$','\\1',cleaned)
-        cleaned = re.sub('([0-9])  *[0-9.a-z]$','\\1',cleaned)
-        cleaned = re.sub('[0-9]\..*','',cleaned) # . after number gives compile error
-        cleaned = re.sub('.*contrapunctus.*','contrapunctus',cleaned)
-        cleaned = re.sub('canto ostinato.*','canto ostinato',cleaned)
-        cleaned = re.sub('goldberg variations.*','goldberg variations',cleaned)
-        
-        # remove leading and trailing spaces
-        cleaned = cleaned.strip()
-
-        return cleaned
-        
-    # Clean tracktitle to match with speech
-    def clean_tracktitle_speech(self,tracktitle):
-        cleaned = self.clean_tracktitle_filter(tracktitle)
-        # No.4 1 
-        cleaned = re.sub('( no.\d) [1-9x].*','\\1',cleaned)
-        cleaned = re.sub('op[. ]+\d*[-/0-9]*', '', cleaned)
-        cleaned = re.sub('violin concerto.*','vioolconcert',cleaned)
-        cleaned = re.sub('\.\.\.',',',cleaned)
-        cleaned = re.sub('\[[^\]]*\]',' ',cleaned)
-        cleaned = re.sub('["\'!]',' ',cleaned)
-        cleaned = re.sub('[({].*[)}]',' ',cleaned)
-        cleaned = re.sub(',',' ',cleaned)
-        cleaned = re.sub('no\.','nummer ',cleaned)
-        cleaned = re.sub('nr\.','nummer ',cleaned)
-        cleaned = re.sub('&',' en ',cleaned)
-        cleaned = re.sub('  *',' ',cleaned)
-
-        cleaned = cleaned.strip()
-
-        return cleaned
-
-    def add_to_dict(self,slot_entries,new_speech,new_filter):
-        if new_speech in slot_entries:
-            old_filter = slot_entries[new_speech]
-            if new_filter in old_filter:
-                my_filter = new_filter
-            elif old_filter in new_filter:
-                my_filter = old_filter
-            else:
-                my_filter = old_filter
-                while not new_filter.startswith(old_filter):
-                    old_filter = old_filter[:-1]
-        else:
-            my_filter = new_filter
-            
-        slot_entries[new_speech] = my_filter
-
-    def save_slots(self,slots_dict,filename):
-        fslots = open(self.path+filename, "w+")
-        for speech,title in sorted(slots_dict.items()):
-            if title.startswith(speech):
-                slotstring = speech
-            else:
-                slotstring = (f"({speech}):({title})")
-            fslots.write(slotstring+'\n')
-        fslots.close()
-
-    def create_slots_albums(self,albums):
-        albumslots = {}
-        
-        for album in albums:
-            speech_title = self.clean_albumtitle_speech(album["label"])
-            filter_title = self.clean_albumtitle_filter(album["label"])
-            if filter_title == "" or speech_title == "":
-                continue
-            self.add_to_dict(albumslots,speech_title,filter_title)
-
-        self.save_slots(albumslots,"albums")
-
-    def create_slots_tracks(self,tracks):
-        trackslots = {}
-        for track in tracks:
-            speech_title = self.clean_tracktitle_speech(track["label"])
-            filter_title = self.clean_tracktitle_filter(track["label"])
-            if filter_title == "" or speech_title == "":
-                continue
-            self.add_to_dict(trackslots,speech_title,filter_title)
-       
-        self.save_slots(trackslots,"tracks")
-
-    def create_slots_composers(self,tracks):
-        composerset = set()
-        for track in tracks:
-            composer = re.sub('[;,].*','',track["displaycomposer"])
-            composerset.add(composer.lower())
-            
-        fcomposers = open(self.path+"composers", "w+")
-        for composer in sorted(composerset):
-            fcomposers.write(composer+'\n')
-        fcomposers.close()
-
-
-    def create_slots_artists(self,albums):
-        artistset = set()
-        
-        for album in albums:
-            for artist in album["artist"]:
-                artistset.add(artist.lower())
-
-        fartists = open(self.path+"artists", "w+")
-        for artist in sorted(artistset):
-            fartists.write(artist+'\n')
-        fartists.close()
-
-
-    def create_slots_genres(self,albums):
-        genreset = set()
-        for album in albums:
-            for genre in album["genre"]:
-                genreset.add(genre.lower())
-
-        fgenres = open(self.path+"genres", "w+")
-        for genre in sorted(genreset):
-            fgenres.write(genre+'\n')
-        fgenres.close()
-  
-    def create_slots_files(self):
-        tracks = self.get_songs(genre="Klassiek")
-        if len(tracks) > 0:
-            self.create_slots_tracks(tracks)
-            self.create_slots_composers(tracks)
-        albums = self.get_albums()
-        if len(albums) > 0:
-            self.create_slots_artists(albums)
-            self.create_slots_albums(albums)
-            self.create_slots_genres(albums)
-        
-if __name__ == '__main__':
-
-    '''
-    getallalbums = 
-    {"jsonrpc":"2.0","method":"AudioLibrary.GetAlbums","params":{"limits": { "start" : 0, "end": 5000 },"properties":["artist","genre"],
-    "sort":{"order":"ascending","method":"album"}},"id":"libAlbums"}
-    getalltracks =
-    {"jsonrpc": "2.0", "method": "AudioLibrary.GetSongs","params": { "limits": { "start" : 0, "end": 50000 },"properties": ["displayartist", "displaycomposer"],
-    "filter":{"field": "genre", "operator": "contains","value": "klassiek"}},
-    "id": "libSongs"}
-            # data = data + ',"sort": { "order": "ascending", "method": "title", "ignorearticle": true }'
-            data = data + '
-    '''
-    logging.basicConfig(filename='kodi.log',
-                        level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)-4.4s %(module)-14.14s - %(message)s',
-                        datefmt='%Y%m%d %H:%M:%S')
-
-    kodi_url = "http://192.168.0.5:8080/jsonrpc"
-
-    kodi = Kodi(kodi_url)
-    # #kodi.add_album_to_playlist("217")
-    # kodi.pause_resume()
-    import sys
-    if len(sys.argv) > 3:
-        matchtitle = sys.argv[3]
-    else: matchtitle = ""
-    if len(sys.argv) > 2:
-        artist = sys.argv[2]
-    else: artist = ""
-    if len(sys.argv) > 1:
-        composer = sys.argv[1]
-    else:
-        kodi.create_slots_files()
-    
 # End Of File
