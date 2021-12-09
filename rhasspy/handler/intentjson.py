@@ -55,7 +55,7 @@ class IntentJSON:
         for entity in self.jsonevent["entities"]:
             if entity["entity"] == entity_name:
                 return entity["raw_value"]
-        return get_slot_value(entity_name)
+        return self.get_slot_value(entity_name)
 
     '''
         You can replace a slotname by its raw_value in the speech string
