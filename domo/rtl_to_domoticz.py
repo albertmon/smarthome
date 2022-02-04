@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 '''
-Copyright 2022 - Albert Montijn (montijnalbert@gmail.com)
+Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -37,62 +37,100 @@ import logging
 log = logging.getLogger(__name__)
 
 # ====================================================================
-# Read configuration data
+# Get command-line parameters and read configuration data
 # ====================================================================
+import argparse
 import configparser
-import traceback
-configfile_name = os.path.expanduser("~/smarthome/smarthome.conf")
-config = configparser.ConfigParser()
-config.read(configfile_name)
+#import traceback
 
-if "rtl_to_domoticz" in config:
-    my_options = config["rtl_to_domoticz"]
-else:
-    print("has NO section(rtl_to_domoticz)")
-    exit(1)
+def is_file_readable(filename):
+    try:
+        f = open(filename, "r")
+        return True
+    except FileNotFoundError:
+        return False
+    except PermissionError:
+        return False
 
-try:
 
-    # Domoticz idx mappings
-    domo_idx_temphum = my_options.getint('domo_idx_temphum',0)
-    
-    domo_idx_wind = my_options.getint('domo_idx_wind',0)
+def get_args(default_config):
+    default_config = os.path.expanduser(default_config)
+    description = 'Receive data using RTL_433 dongle and send it to Domoticz'
+    documentation = '''
+        This program will listen indefinitely for messages received by a SDR_dongle
+        The program starts rtl_433 for a predefined maximum number of seconds.
+        When data is received and the time for an update of Domoticz has passed
+        the data will be sent to Domoticz.
+        The default configuration file is '''+default_config+'''
+        Please goto https://github.com/albertmon/smarthome/wiki for more info
+        '''
+        
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=description, 
+        epilog=documentation)
+    help_config = f"use config-file CONF. Default config-file = '{default_config}'"
+    parser.add_argument('-t', '--test',help="test one time", action="store_true")
+    parser.add_argument('-c', '--conf',help=help_config, type=argparse.FileType('r'),default=default_config)
+    parser.add_argument("-v","--verbose", help="verbose output (NOT Logging!)", action="store_true")
+    return parser.parse_args()
 
-    # Path to the file with logging output
-    LOGFILE_PATH = os.path.expanduser(my_options.get("LOGFILE_PATH","rtl_to_domoticz.log"))
+def get_config(config_file):
+    config = {}
+    config_parser = configparser.ConfigParser()
+    config_parser.read_file(config_file)
 
-    # LOGLEVEL can be set to logging.DEBUG, logging.INFO, logging.WARN,
-    #          logging.ERROR or logging.CRITICAL
-    level = my_options.get("LOGLEVEL", "INFO")
-    exec(f"LOGLEVEL = logging.{level}")
+    if "rtl_to_domoticz" in config_parser:
+        my_options = config_parser["rtl_to_domoticz"]
+    else:
+        print(f"{configfile_name} has NO section(rtl_to_domoticz)")
+        exit(1)
 
-    # URL to your Domoticz server
-    DOMOTICZ_URL = my_options.get('DOMOTICZ_URL', "http://localhost:8080")
+    try:
+        # config file for rtl_433
+        config["rtl_config_file"] =  os.path.expanduser(my_options.get('rtl_config_file',""))
 
-    # seconds to wait for next data gathering
-    POLL_INTERVAL = my_options.getint('POLL_INTERVAL',30)  #  30
+        # Domoticz idx mappings
+        config["domo_idx_temphum"] = my_options.getint('domo_idx_temphum',0)
 
-    # number of seconds before a timeout is reported and rtl_433 is restarted
-    NO_DATA_TIMEOUT = my_options.getint('NO_DATA_TIMEOUT', 300)  # 300
+        config["domo_idx_wind"] = my_options.getint('domo_idx_wind',0)
 
-    # number of seconds when to give up retrying
-    GIVE_UP_TIMEOUT = my_options.getint('GIVE_UP_TIMEOUT',3600)  # 3600
+        config["formatstr"] = my_options.get("LOG_FORMAT",
+            "%(asctime)s %(levelname)-4.4s %(module)-12.12s %(funcName)-10.10s (%(lineno)d)- %(message)s")
+            
+        # Path to the file with logging output
+        config["LOGFILE_PATH"] = os.path.expanduser(my_options.get("LOGFILE_PATH","rtl_to_domoticz.log"))
+        print(f"Logfile: {config['LOGFILE_PATH']}.")
+        # LOGLEVEL can be set to logging.DEBUG, logging.INFO, logging.WARN,
+        #          logging.ERROR or logging.CRITICAL
+        config["LOGLEVEL"] = my_options.get("LOGLEVEL", "INFO")
 
-    # mail parameters
-    mail_to = my_options.get('mail_to', "")
-    mail_from = my_options.get('mail_from', "")
+        # URL to your Domoticz server
+        config["DOMOTICZ_URL"] = my_options.get('DOMOTICZ_URL', "http://localhost:8080")
 
-    # config file for rtl_433
-    rtl_config_file = my_options.get('rtl_config_file',"")
+        # seconds to wait for next data gathering
+        config["POLL_INTERVAL"] = my_options.getint('POLL_INTERVAL',30)  #  30
 
-except ValueError as exc:
-    print(f"Error in configfile ({configfile_name}): {exc}")
-    sys.exit(1)
+        # number of seconds before a timeout is reported and rtl_433 is restarted
+        config["NO_DATA_TIMEOUT"] = my_options.getint('NO_DATA_TIMEOUT', 300)  # 300
 
-except Exception as exc:
-    print(f"Exception during configuring: {exc}")
-    print(f"{traceback.format_exc()}")
-    sys.exit(1)
+        # number of seconds when to give up retrying
+        config["GIVE_UP_TIMEOUT"] = my_options.getint('GIVE_UP_TIMEOUT',3600)  # 3600
+
+        # mail parameters
+        config["mail_to"] = my_options.get('mail_to', "")
+        config["mail_from"] = my_options.get('mail_from', "")
+
+    except ValueError as exc:
+        print(f"Error in configfile ({configfile_name}): {exc}")
+        sys.exit(1)
+
+    except Exception as exc:
+        print(f"Exception during configuring: {exc}")
+#        print(f"{traceback.format_exc()}")
+        sys.exit(1)
+
+    return config
+
 
 # ====================================================================
 # End of configurable data
@@ -183,20 +221,17 @@ def send_mail(mail_to, msg):
         process.stdin.close()
 
 def mail_program_ended(elapsed_time):
-    if mail_to :
+    if config["mail_to"] :
         subject = "No data from weather station"
         body = f"No datareceived for {elapsed_time} seconds on "\
-                + f"{datetime.datetime.now().strftime('%c')}"
-        msg = f"To: {mail_to}\nFrom: {mail_from}\nSubject: {subject}\n{body}\n\n"
-        send_mail(mail_to, msg)
+                + f"{datetime.datetime.now().strftime('%c')}"\
+                + f"\nProgram ended\n"
+
+        msg = f"To: {config['mail_to']}\nFrom: {config['mail_from']}\nSubject: {subject}\n{body}\n\n"
+        send_mail(config["mail_to"], msg)
 
 def wd_start():
     log.info("(Re)starting data gathering for weather station")
-    # subject = "(Re)starting data gathering for weather station"
-    # body = f"(Re)starting receiving data for weather station on "\
-           # +f"{datetime.datetime.now().strftime('%c')}"
-    # msg = f"To: {mail_to}\nFrom: {mail_from}\nSubject: {subject}\n{body}\n\n"
-    # send_mail(mail_to, msg)
 
 def wd_stop(elapsed_time):
     log.info(f"watchdog stopped after {elapsed_time} seconds")
@@ -233,7 +268,7 @@ HUM_STAT can be one of:
 '''
 def send_temp_hum(temp,hum,hum_stat=0):
 
-    get_url = f"{DOMOTICZ_URL}/json.htm?type=command&param=udevice&idx={domo_idx_temphum}&svalue={temp};{hum};{hum_stat}"
+    get_url = f"{config['DOMOTICZ_URL']}/json.htm?type=command&param=udevice&idx={config['domo_idx_temphum']}&svalue={temp};{hum};{hum_stat}"
     send_url(get_url)
 
 '''
@@ -255,7 +290,7 @@ def winddir(bearing):
 
 def send_wind(wb,wd,ws,wg,temp,temp_wc=0):
 
-    get_url = f"{DOMOTICZ_URL}/json.htm?type=command&param=udevice&idx={domo_idx_wind}&svalue={wb};{wd};{ws};{wg};{temp};{temp_wc}"
+    get_url = f"{config['DOMOTICZ_URL']}/json.htm?type=command&param=udevice&idx={config['domo_idx_wind']}&svalue={wb};{wd};{ws};{wg};{temp};{temp_wc}"
     send_url(get_url)
 
 def send_weather(data):
@@ -273,35 +308,42 @@ def send_weather(data):
 
 if __name__ == '__main__':
 
-    formatstr = '%(asctime)s %(levelname)-4.4s %(module)-12.12s'\
-                 +' %(funcName)-8.8s (%(lineno)d)- %(message)s'
-    logging.basicConfig(filename=LOGFILE_PATH,
-                        level=LOGLEVEL,
-                        format=formatstr,
+    args = get_args("~/domo/smarthome.conf")
+    verbose = args.verbose
+    config = get_config(args.conf)
+
+    logging.basicConfig(filename=config["LOGFILE_PATH"],
+                        level=config["LOGLEVEL"],
+                        format=config["formatstr"],
                         datefmt='%Y%m%d %H:%M:%S')
 
     log.info("starting rtl_to_domoticz")
 
-    if rtl_config_file :
-        cmd = ['/usr/bin/rtl_433','-c',rtl_config_file]
+    if config["rtl_config_file"] :
+        if is_file_readable(config["rtl_config_file"]):
+            cmd = ['/usr/bin/rtl_433','-c', config["rtl_config_file"]]
+        else:
+            print(f"File {config['rtl_config_file']} is not readable/existing")
+            log.info(f"File {config['rtl_config_file']} is not readable/existing")
+            exit(2)
     else :
         cmd = ['/usr/bin/rtl_433','-R','119','-f','868288000','-F','json']
 
     # Initialize last_time_sent to current time - POLL_INTERVAL
     # The first packet of data received will trigger a new last_time_sent
-    last_time_sent = time.time() - POLL_INTERVAL
+    last_time_sent = time.time() - config["POLL_INTERVAL"]
 
     wd = None
-    while  time.time() < last_time_sent + GIVE_UP_TIMEOUT :
+    while  time.time() < last_time_sent + config["GIVE_UP_TIMEOUT"] :
         # Wait until next Poll must be done:
-        sleep_time = POLL_INTERVAL + last_time_sent - time.time()
+        sleep_time = config["POLL_INTERVAL"] + last_time_sent - time.time()
         if sleep_time > 0 :
             log.debug(f"In loop: sleeping {sleep_time} seconds")
             time.sleep(sleep_time)
 
         # We will kill the rtl_433 process in wd_stop and restart it
         # in the while loop until the GIVE_UP_TIMEOUT is reached
-        wd = WatchdogThread.restart(wd_start,wd_stop,NO_DATA_TIMEOUT, wd)
+        wd = WatchdogThread.restart(wd_start,wd_stop,config["NO_DATA_TIMEOUT"], wd)
 
         # The os.setsid() is passed in the argument preexec_fn so
         # it's run after the fork() and before exec() to run the shell.
@@ -336,7 +378,7 @@ if __name__ == '__main__':
             log.debug(f"Weather info sent:{str(data_received)}")
             last_time_sent = time.time()
 
-            wd = WatchdogThread.restart(wd_start,wd_stop,NO_DATA_TIMEOUT,wd)
+            wd = WatchdogThread.restart(wd_start,wd_stop,config["NO_DATA_TIMEOUT"],wd)
 
         # we arrive here when the rtl_433 process is stopped
         # and the poll function returned None
@@ -351,8 +393,21 @@ if __name__ == '__main__':
                 log.warning(f"stderr:{line_err}")
             line_err = proc.stderr.readline().rstrip()
         if proc.returncode != 0 :
-            log.warning(f"Subprocess: Exited with exitcode = {proc.returncode}. Waiting {NO_DATA_TIMEOUT-POLL_INTERVAL} seconds before retrying")
-            time.sleep(NO_DATA_TIMEOUT-POLL_INTERVAL)
+            log.warning(f"Subprocess: Exited with exitcode = {proc.returncode}. Waiting {config['NO_DATA_TIMEOUT']-config['POLL_INTERVAL']} seconds before retrying")
+            time.sleep(config["NO_DATA_TIMEOUT"]-config["POLL_INTERVAL"])
+
+        if args.test :
+            last_time_sent = time.time()
+            config["GIVE_UP_TIMEOUT"] = 0
+
+    if wd :
+        if wd.is_alive():
+            if args.test :
+                print(f"stop running thread ({wd})")
+            wd.join()
+
+    if args.test :
+        print(f"Program ended, send mail")
 
     log.info(f"Program ended, send mail")
     mail_program_ended(int(time.time()-last_time_sent)) 
