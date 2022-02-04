@@ -23,7 +23,8 @@
 # software-setup - script to setup smarthome software
 # docker-compose must be installed !
 # The following can be installed:
-# mosquitto : the broker between zigbee and domoticz, and rhasspy when internal broker is not used
+# mosquitto : the broker between domoticz and zigbee
+#             and rhasspy when internal broker is not used
 # domoticz 
 # zigbee2mqtt
 # rhasspy
@@ -130,7 +131,7 @@ zigbee2mqtt(){
     image: koenkk/zigbee2mqtt
     container_name: zigbee2mqtt
 EOF
-	[ -n "BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
+	[ -n "$BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
     depends_on:
       - broker
 EOF
@@ -185,7 +186,7 @@ domoticz() {
     container_name: domoticz
     image: domoticz/domoticz
 EOF
-	[ -n "BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
+	[ -n "$BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
     depends_on:
       - broker
 EOF
@@ -226,7 +227,7 @@ rhasspy() {
     container_name: rhasspy_nl
     image: "rhasspy/rhasspy"
 EOF
-	[ -n "BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
+	[ -n "$BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
     depends_on:
       - broker
 EOF
@@ -255,7 +256,7 @@ node-red(){
     image: nodered/node-red
     container_name: node-red
 EOF
-	[ -n "BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
+	[ -n "$BROKER_INSTALLED" ] && cat >> $YML_FILE <<EOF 
     depends_on:
       - broker
 EOF
@@ -320,7 +321,6 @@ create_bin() {
 ##  Main 
 ##
 #########################################################################
-# You want the script to run in an empty directory !
 
 # Check for existence of docker-compose
 docker-compose --version > /dev/null 2>&1 || {
@@ -335,7 +335,7 @@ docker-compose --version > /dev/null 2>&1 || {
 	exit 1
 	}
 
-# The current dicrectory is the root-directory for the smarthome software
+# The current directory will be the root-directory for the smarthome software
 ROOT_DIR=$(pwd)
 
 # Create the docker-compose.yml file in the ROOT_DIR
