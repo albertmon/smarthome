@@ -117,8 +117,8 @@ def doGetDate():
     intentjson.set_speech(speech)
 
 def doTimer():
-    minutes = int(intentjson.get_slot_value("minutes","0"))
-    seconds = int(intentjson.get_slot_value("seconds","0"))
+    minutes = intentjson.get_slot_intvalue("minutes",0)
+    seconds = intentjson.get_slot_intvalue("seconds",0)
     PATH = os.getenv("RHASSPY_PROFILE_DIR") + "/handler/"
     command = PATH + 'timer.sh'
     seconds_to_sleep = minutes*60 + seconds
@@ -272,8 +272,8 @@ def doDuckDuckGo():
 
 
 if __name__ == '__main__':
-    formatstr = '%(asctime)s %(levelname)-4.4s %(module)-14.14s (%(lineno)d)'\
-                 + '- %(message)s'
+    formatstr = '%(asctime)s %(levelname)-4.4s %(module)-12.12s'\
+                 +' %(funcName)-8.8s (%(lineno)d)- %(message)s'
     logging.basicConfig(filename=LOGPATH+'intenthandler.log',
                         level=logging.DEBUG,
                         format=formatstr,

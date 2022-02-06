@@ -76,7 +76,7 @@ class IntentSmartCity:
             log.debug("Smartcitizen result sensors: "+str(sensors))
             for sensor in sensors:
                 log.debug("Smartcitizen result: 1 sensor "+str(sensor))
-                if "id" in sensor and sensor["id"] == int(idx):
+                if "id" in sensor and sensor["id"] == idx:
                     if "value" in sensor:
                         value = sensor["value"]
                         break
@@ -88,8 +88,8 @@ class IntentSmartCity:
         kit = self.intentjson.get_slot_value("kit")
         if not kit:
             error_missing_parameter("kit","doSmartCityInfo")
-        idx = self.intentjson.get_slot_value("idx")
-        if not idx:
+        idx = self.intentjson.get_slot_intvalue("idx",0)
+        if idx == 0:
             error_missing_parameter("idx","doSmartCityInfo")
         speech = self.intentjson.get_slot_value("speech")
         if not speech:

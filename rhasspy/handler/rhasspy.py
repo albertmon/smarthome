@@ -95,5 +95,8 @@ class Rhasspy:
     def rhasspy_train(self):
         self.do_post_rhasspy(self.url+"train")
 
+    def rhasspy_restart(self):
+        self.do_post_rhasspy(self.url+"restart")
+
 
 # End Of File

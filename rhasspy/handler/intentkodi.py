@@ -178,13 +178,18 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
     def doKodiUpdateSlots(self):
         question = intentconfig.get_text(intentconfig.KodiText.AskUpdateSlotsConfirmation)
         if self.rhasspy.rhasspy_confirm(question):
+            self.rhasspy.rhasspy_speak(
+                intentconfig.get_text(intentconfig.Text.Please_Wait))
             kodi_rhasspy = Kodi_Rhasspy(self.kodi, self.rhasspy)
-            confirmation = intentconfig.get_text(intentconfig.KodiText.SayUpdateSlotsConfirmation)
-            self.intentjson.set_speech(confirmation)
-            kodi_rhasspy.create_slots_files()
+            res = kodi_rhasspy.create_slots_files()
+            if res:
+                confirmation = res
+            else :
+                confirmation = intentconfig.get_text(intentconfig.KodiText.SayUpdateSlotsConfirmation)
         else:
-            no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoUpdateSlotsConfirmation)
-            self.intentjson.set_speech(no_confirmation)
+            confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoUpdateSlotsConfirmation)
+
+        self.intentjson.set_speech(confirmation)
 
 
 # End of file

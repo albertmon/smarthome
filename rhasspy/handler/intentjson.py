@@ -51,10 +51,21 @@ class IntentJSON:
             return self.jsonevent["slots"][slot_name]
         return default
 
+    def get_slot_intvalue(self,slot_name,default=0):
+        if slot_name in self.jsonevent["slots"]:
+            try:
+                return int(self.jsonevent["slots"][slot_name])
+            except ValueError:
+                return default
+        return default
+
     def get_raw_value(self,entity_name):
+        log.debug(f"get_raw_value({entity_name})")
         for entity in self.jsonevent["entities"]:
             if entity["entity"] == entity_name:
+                log.debug(f"get_raw_value found: ({entity['raw_value']})")
                 return entity["raw_value"]
+        log.debug(f"get_raw_value not found, return({self.get_slot_value(entity_name)})")
         return self.get_slot_value(entity_name)
 
     '''

@@ -29,14 +29,16 @@ log = logging.getLogger(__name__)
 
 from enum import Enum
 Text = Enum('Text',
-            'DecimalPoint AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
+            'DecimalPoint Please_Wait AND MINUTE MINUTES SECONDS WEEKDAY MONTH' +
             ' ERROR Intent_Error DuckDuckGo_ERROR SENTENCES_ERROR' +
             ' Timer_Response Timer_ERROR GetTime_Response' +
             ' GetDate_Response GetAge_Response GetBirthDate_Response' +
             ' GetBirthDay_Single GetBirthDay_Multiple GetBirthDay_Month' +
             ' GetBirthDay_MonthList GetNoBirthDay')
 DomoText = Enum('DomoText',
-            'Error GetWind_Response GetWind_Direction GetWind_Beaufort')
+            'Error GetWind_Response GetWind_Direction GetWind_Beaufort' +
+            ' Old_data AskUpdateSlotsConfirmation' +
+            ' SayUpdateSlotsConfirmation SayNoUpdateSlotsConfirmation')
 KodiText = Enum('KodiText',
             'Music AskPlayConfirmation SayNoMusicFound SayPlayConfirmation' +
             ' SayNoPlayConfirmation WhatsPlaying_Response WhatsPlaying_Error' +
@@ -51,14 +53,16 @@ config = {
     "urls" : 
         { "Rhasspy" : "http://localhost:12101"
         , "DuckDuckGo" : "https://api.duckduckgo.com"
-        , "Domo" : "http://domopi:8080"
-        , "Kodi" : "http://kodipi:8080"
+        , "Domo" : "http://localhost:8080"
+        , "Kodi" : "http://localhost:8080"
         , "SmartCity" : "https://api.smartcitizen.me"
+        , "KNMI" : "https://weerlive.nl/api/json-data-10min.php"
         }
     }
 
 text = {
 "en" : {
+    Text.Please_Wait: "please wait a moment",
     Text.DecimalPoint: "point",
     Text.AND: "and",
     Text.MINUTE: "minute",
@@ -85,6 +89,7 @@ text = {
     Text.GetNoBirthDay: "there are no birthdays in the coming month",
 
     DomoText.Error : "no answer received from domoticz",
+    DomoText.Old_data: "The data is old. No recent information",
     DomoText.GetWind_Response : \
         "the wind is blowing {SPEED} meter per second from the {DIRECTION}. Wind strength is {BEAUFORT} beaufort. {BEAUFORT_TEXT}",
     DomoText.GetWind_Direction : {
@@ -120,6 +125,9 @@ text = {
         (11,32.6,"Violent storm","Very rarely experienced; accompanied by widespread damage."),
         (12,999,"Hurricane force","Devastation.")
         ),
+    DomoText.AskUpdateSlotsConfirmation: "do you want me to update the domotics devices ?",
+    DomoText.SayUpdateSlotsConfirmation: "the update of the domotics devices is done.",
+    DomoText.SayNoUpdateSlotsConfirmation: "i will leave the domotics devices as it is",
 
     KodiText.Music: "music",
     KodiText.AskPlayConfirmation: "do you want me to play {TITLE} of {ARTIST} ?",
@@ -134,6 +142,7 @@ text = {
     },
 
 "nl" : {
+    Text.Please_Wait: "een ogenblikje",
     Text.DecimalPoint: "komma",
     Text.AND: "en",
     Text.MINUTE: "minuut",
@@ -145,6 +154,7 @@ text = {
         "juli", "augustus", "september", "october", "november", "december" ],
     Text.ERROR: "Er is iets fout gegaan. zoek in het log bestand naar error",
     Text.SENTENCES_ERROR: "Er is iets fout gegaan. zoek in het log bestand naar SENTENCES ERROR",
+    Text.Intent_Error: "Ik kan de intent {INTENT} niet vinden. Controleer sentences.ini",
     Text.DuckDuckGo_ERROR: "Geen informatie gevonden voor {SEARCH}",
     Text.Timer_Response: "ik heb een taimer gezet op {MINUTES} {AND} {SECONDS}",
     Text.Timer_ERROR: "ik kan geen taimer zetten voor minder dan 10 seconden",
@@ -159,6 +169,7 @@ text = {
     Text.GetNoBirthDay: "de rest van de maand en de volgende maand zijn er geen verjaardagen",
 
     DomoText.Error : "Geen of fout antwoord van domoticz ontvangen",
+    DomoText.Old_data: "De informatie is verouderd. Ik kan geen antwoord geven",
     DomoText.GetWind_Response : "Het waait {SPEED} meter per seconde uit {DIRECTION}elijke richting. Het waait {BEAUFORT} bo for. {BEAUFORT_TEXT}",
     DomoText.GetWind_Direction : {
             "N": "noord",
@@ -193,6 +204,9 @@ text = {
             (11,32.6,"zeer zware storm","enorme schade aan bossen"),
             (12,999,"orkaan","verwoestingen")
         ),
+    DomoText.AskUpdateSlotsConfirmation: "weet je zeker dat ik de domotics dievaaises moet vurversen ?",
+    DomoText.SayUpdateSlotsConfirmation: "ik ben klaar met het vurversen van de domotics dievaaises gegevens.",
+    DomoText.SayNoUpdateSlotsConfirmation: "ik zal de domotics dievaaises niet vurversen",
 
     KodiText.Music: "muziek",
     KodiText.AskPlayConfirmation: "wil je dat ik {TITLE} van {ARTIST} ga afspelen ?",
@@ -267,6 +281,12 @@ def get_instances(json):
         try:
             from intentsmartcity import IntentSmartCity
             instances["SmartCity"] = IntentSmartCity(json)
+        except Exception as exc:
+            log.error(f"Exception instantiating SmartCity: {exc}")
+    if "KNMI" in config["urls"]:
+        try:
+            from intentknmi import IntentKNMI
+            instances["KNMI"] = IntentKNMI(json)
         except Exception as exc:
             log.error(f"Exception instantiating SmartCity: {exc}")
     return instances

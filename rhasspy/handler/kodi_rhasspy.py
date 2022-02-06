@@ -261,7 +261,6 @@ class Kodi_Rhasspy:
         slots_dict = { slotname :  slots }
         log.debug(f"Send to Rhasspy:<<<<{json.dumps(slots_dict)}>>>>")
         self.rhasspy.rhasspy_replace_slots(json.dumps(slots_dict))
-        self.rhasspy.rhasspy_train()
 
     def create_slots_albums(self,albums):
         albumslots = {}
@@ -326,6 +325,10 @@ class Kodi_Rhasspy:
             self.create_slots_artists(albums)
             self.create_slots_albums(albums)
             self.create_slots_genres(albums)
+        res = self.rhasspy.rhasspy_train()
+        if res and res.status_code != 200:
+            return res.text
+
 
 if __name__ == '__main__':
 
@@ -345,25 +348,6 @@ if __name__ == '__main__':
                         format='%(asctime)s %(levelname)-4.4s %(module)-14.14s - %(message)s',
                         datefmt='%Y%m%d %H:%M:%S')
 
-    kodi_url = "http://192.168.0.5:8080"
-    kodi = Kodi(kodi_url)
+    # Insert test code here
 
-    rhasspy_url = "http://192.168.0.5:12101"
-    rhasspy = Rhasspy(rhasspy_url)
-    
-    kodi_rhasspy = Kodi_Rhasspy(kodi,rhasspy)
-    # #kodi.add_album_to_playlist("217")
-    # kodi.pause_resume()
-    import sys
-    if len(sys.argv) > 3:
-        matchtitle = sys.argv[3]
-    else: matchtitle = ""
-    if len(sys.argv) > 2:
-        artist = sys.argv[2]
-    else: artist = ""
-    if len(sys.argv) > 1:
-        composer = sys.argv[1]
-    else:
-        kodi_rhasspy.create_slots_files()
-    
 # End Of File

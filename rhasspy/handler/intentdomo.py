@@ -22,6 +22,10 @@ Copyright 2021 - Albert Montijn (montijnalbert@gmail.com)
    So any resemblance to already existing code is purely coincidental
 '''
 
+from domo import Domo
+from rhasspy import Rhasspy
+from domo_rhasspy import Domo_Rhasspy
+
 import json
 import requests
 import intentconfig
@@ -65,152 +69,36 @@ class IntentDomo:
     '''
 
     def __init__(self, intentjson):
-        domoticz_url = intentconfig.get_url("Domo")+"/json.htm?"
-        self.domoticz_url = domoticz_url
         self.intentjson = intentjson
-
-    def get_domoticz(self,command,firstOnly=True):
-        url = self.domoticz_url+command
-        timeout=3.05
-        log.debug(f"Url:{url}, timeout={timeout}")
-        try:
-            res = requests.get(url, timeout=(0.5, timeout))
-            log.debug(f"request returned:({res})")
-            if res.status_code != 200:
-                log.info(f"Url:[{url}\nResult:{res.status_code}, text:{res.text}")
-                return None
-        except ConnectionError:
-            log.warning(f"ConnectionError for {url}")
-            return None
-
-        except Timeout:
-            log.warning(f"Timeout for {url}")
-            return None
-        except:
-            log.warning("Unexpected error:", sys.exc_info()[0])
-            return None
-
-        log.debug(str(res))
-        res_json = json.loads(res.text)
-        log.debug(str(res_json))
-
-        if "result" in res_json:
-            if firstOnly:
-                return(res_json["result"][0])
-            return(res_json["result"])
-
-        return(res_json)
-
-
-    def get_domo_devices(self,favorite=1):
-        devices = []
-        res = self.get_domoticz(f"type=devices&filter=all&used=true&order=Name&favorite={favorite}",firstOnly=False)
-        log.debug(f"res={res}")
-            
-        for device in res:
-            log.debug(f"get_domo_devices: dev={device}")
-            if "idx" not in device:
-                continue # Should never happen
-            if 'Type' not in device:
-                continue # Should never happen
-            device_idx = int(device["idx"])
-            device_type = device["Type"]
-            
-            if "SwitchType" in device:
-                switch_type = device["SwitchType"]
-            else:
-                switch_type = ""
-
-            if "Description" in device:
-                device_desc = device["Description"]
-            else:
-                device_desc = ""
-
-            if "Name" in device:
-                device_name = device["Name"]
-            else:
-                device_name = ""
-
-            dev_info = {"idx":device_idx,
-                            "Type":device_type,
-                            "SwitchType":switch_type,
-                            "Name":device_name,
-                            "Description":device_desc}
-            devices.append(dev_info)
-            log.debug(f"get_domo_devices:added dev_info: {dev_info}.")
-
-        return devices
-
-    def domoInfo(self, idx,field_name,default=""):
-        res_json = self.get_domoticz(f"type=devices&rid={idx}")
-        if field_name in res_json:
-            return res_json[field_name]
-        return default
-
-    def doDomoInfo(self):
-        # get slots
-        field_name = self.intentjson.get_slot_value("name", "Data")
-        idx = self.intentjson.get_slot_value("idx")
-        if not idx:
-            error_missing_parameter("idx","DomoInfo")
-        speech = self.intentjson.get_slot_value("speech")
-        if not speech:
-            error_missing_parameter("speech","DomoInfo")
-        resultMatch = self.intentjson.get_slot_value("result","RESULT")
-
-        # perform action
-        value = self.domoInfo(idx,field_name)
-        if value == "":
-            # No value received, return Error result 
-            log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
-                + f"\n-----json--------\n{res_json}\n-----end json--------\n")
-            speech = intentconfig.get_text(intentconfig.DomoText.Error)
-            self.intentjson.set_speech(speech)
-        else:
-            # format speech result
-            returnValue = intentconfig.replace_decimal_point(str(value))
-            self.intentjson.set_speech(speech.replace(resultMatch,returnValue))
-
+        domo_url = intentconfig.get_url("Domo")
+        self.domo = Domo(domo_url)
+        rhasspy_url = intentconfig.get_url("Rhasspy")
+        self.rhasspy = Rhasspy(rhasspy_url)
 
     def doDomoScene(self):
         # get slots
-        idx = self.intentjson.get_slot_value("idx")
+        idx = self.intentjson.get_slot_intvalue("idx")
         if not idx:
             error_missing_parameter("idx","DomoScene")
 
-        # format speech result
-        speech = self.intentjson.get_slot_value("speech")
-        if not speech:
-            error_missing_parameter("speech","DomoScene")
-        self.intentjson.set_speech(speech)
-
         # perform action
-        command = f"type=command&param=switchscene&idx={idx}&switchcmd=On"
-        self.get_domoticz(command)
+        self.domo.set_scene(idx)
 
     def doDomoDimmer(self):
         # get slots
-        idx = self.intentjson.get_slot_value("idx")
+        idx = self.intentjson.get_slot_intvalue("idx")
         if not idx:
             error_missing_parameter("idx","DomoDimmer")
         state = self.intentjson.get_slot_value("state",default="Off")
-        level = self.intentjson.get_slot_value("level", default=100)
+        level = self.intentjson.get_slot_intvalue("level", default=100)
 
         # perform action
         log.debug(f"doDomoDimmer(idx={idx}, state={state}, level={level})")
-        if level >= 0:
-            maxDimLevel = self.domoInfo(idx,"MaxDimLevel","100")
-            log.debug(f"(maxDimLevel={maxDimLevel})")
-            level = int((level * int(maxDimLevel))/100 + 0.5)
-            switchcmd = "Set Level&level=%d" % (level)
-        else:
-            switchcmd = state
-        command = f"type=command&param=switchlight&idx={idx}&switchcmd={switchcmd}"
-        self.get_domoticz(command)
+        self.domo.set_switch(idx, state, level)
 
     def doDomoSwitch(self):
         # get slots
-        idx = self.intentjson.get_slot_value("idx")
+        idx = self.intentjson.get_slot_intvalue("idx")
         if not idx:
             error_missing_parameter("idx","DomoSwitch")
         state = self.intentjson.get_slot_value("state")
@@ -219,20 +107,60 @@ class IntentDomo:
         log.debug(f"doDomoSwitch:idx={idx},state={state}")
 
         # perform action
-        command = f"type=command&param=switchlight&idx={idx}&switchcmd={state}"
-        log.debug(f"doDomoSwitch:command={command}")
-        self.get_domoticz(command)
+        self.domo.set_switch(idx,state)
+
+    def doDomoInfo(self):
+        # get slots
+        field_name = self.intentjson.get_slot_value("name", "Data")
+        max_age = self.intentjson.get_slot_intvalue("maxage", 0)
+        
+        idx = self.intentjson.get_slot_intvalue("idx")
+        if not idx:
+            error_missing_parameter("idx","DomoInfo")
+        speech = self.intentjson.get_slot_value("speech")
+        if not speech:
+            error_missing_parameter("speech","DomoInfo")
+        resultMatch = self.intentjson.get_slot_value("result","RESULT")
+        log.debug(f"field_name={field_name},speech={speech},resultMatch={resultMatch}")
+
+        # perform action
+        info = self.domo.get_info(idx,max_age=1800)
+        log.debug(f"idx={idx},max_age={max_age},info={info}")
+        if info == "":
+            # No info received, return Error result 
+            log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
+                + f"\n-----json--------\n{info}\n-----end json--------\n")
+            speech = intentconfig.get_text(intentconfig.DomoText.Error)
+            self.intentjson.set_speech(speech)
+        elif info == "OLD_DATA":
+            # LastUpdate too long ago 
+            log.warning(f"Old returned for idx:{idx}, fieldname:{field_name}."\
+                + f"\n-----json--------\n{info}\n-----end json--------\n")
+            speech = intentconfig.get_text(intentconfig.DomoText.Old_data)
+            self.intentjson.set_speech(speech)
+        else:
+            # format speech result
+            returnValue = intentconfig.replace_decimal_point(str(info))
+            self.intentjson.set_speech(speech.replace(resultMatch,returnValue))
+
 
     def doDomoGetWind(self):
-        idx = self.intentjson.get_slot_value("idx")
+        idx = self.intentjson.get_slot_intvalue("idx")
         if not idx:
             error_missing_parameter("idx","DomoGetWind")
         log.debug(f"doDomoGetWind:idx={idx}")
 
         # perform action
-        command = f"type=devices&rid={idx}"
-        log.debug(f"doDomoGetWind:command={command}")
-        res_json = self.get_domoticz(command)
+        res_json = self.domo.get_info(idx,max_age=1800)
+
+        log.debug(f"Received: <{res_json}>")
+        if str(res_json) == "OLD_DATA" :
+            log.warning(f"Old data returned for idx:{idx}"\
+                + f"\n-----json--------\n{res_json}\n-----end json--------\n")
+            speech = "Geen informatie, de data is verouderd"
+            self.intentjson.set_speech(speech)
+            log.debug("x")
+            return
 
         if "Speed" and "DirectionStr" in res_json:   # json result is Ok
             speed = res_json["Speed"]
@@ -246,7 +174,7 @@ class IntentDomo:
             self.intentjson.set_speech(speech.format(SPEED=speed, DIRECTION=direction,
                 BEAUFORT=beaufort, BEAUFORT_TEXT=text ))
         else:
-            log.warning(f"Error returned for idx:{idx}, fieldname:{field_name}."\
+            log.warning(f"Error returned for idx:{idx}."\
                 + f"\n-----json--------\n{res_json}\n-----end json--------\n")
             speech = intentconfig.get_text(intentconfig.DomoText.Error)
             self.intentjson.set_speech(speech)
@@ -288,7 +216,7 @@ class IntentDomo:
             error_missing_parameter("speech","DomoSun")
 
         # perform action
-        res_json = self.get_domoticz("type=devices&rid=0")
+        res_json = self.domo.get_info()
         log.debug(str(res_json))
         
         dawn = self.get_json_value(res_json,"CivTwilightStart").replace(':',' ')
@@ -299,15 +227,162 @@ class IntentDomo:
         # format speech result
         if "DAWN" in speech:
             speech = speech.replace('DAWN', dawn)
-        log.debug(f"Speech(DAWN={dawn}: <{speech}>")
         if "SUNRISE" in speech:
             speech = speech.replace('SUNRISE', sunrise)
         if "SUNSET" in speech:
             speech = speech.replace('SUNSET', sunset)
         if "DUSK" in speech:
             speech = speech.replace('DUSK', dusk)
-        log.debug(f"Speech(DUSK={dusk}: <{speech}>")
 
         self.intentjson.set_speech(speech)
+
+    '''
+    Get info from devices e.g.
+    DomoGas   007 Type:P1 Smart Meter         SubType:Gas		   Data:5905.186      Name:Gas
+            Counter:5905.186	CounterToday:3.380 m3,
+    '''
+    def doDomoGas(self):
+        device = self.domo.get_device("P1 Smart Meter")
+        if device :
+            data = device["CounterToday"]
+            data = re.sub(' .*','',data)
+        else:
+            data = ""
+
+
+    '''
+    DomoHumid 152 Type:Humidity				  SubType:LaCrosse TX3 Data:Humidity 50 % Name:dummy humidity
+            Humidity:50	HumidityStatus:Comfortable,
+    DomoHumid 019 Type:Temp + Humidity		  SubType:THGN122/123. Data:3.7 C 88 %    Name:Temp/Humid
+            DewPoint:1.90	Humidity:88	HumidityStatus:Normal	Temp:3.7,
+    DomoHumid 147 Type:Temp + Humidity + Baro SubType:THB1 - BTHR. Data:0.0 C 50 % 1010 hPa	Name:dummy temp hum baro
+            Barometer:1010	DewPoint:-9.20	Forecast:1	ForecastStr:Sunny	Humidity:50	HumidityStatus:Comfortable	Temp:0.0,
+    '''
+    def doDomoHumid(self):
+        device = self.domo.get_device("Humidity")
+        if device :
+            data = device["Humidity"]
+        else:
+            device = self.domo.get_device("Temp + Humidity")
+            if device :
+                data = device["Humidity"]
+            else:
+                device = self.domo.get_device("Temp + Humidity + Baro")
+                if device :
+                    data = device["Humidity"]
+                else:
+                    data = ""
+
+
+    '''
+    DomoBaro  147 Type:Temp + Humidity + Baro SubType:THB1 - BTHR..Data:0.0 C 50 %	1010 hPa	Name:dummy temp hum baro
+            Barometer:1010	DewPoint:-9.20	Forecast:1	ForecastStr:Sunny	Humidity:50	HumidityStatus:Comfortable	Temp:0.0,
+    DomoBaro  148 Type:Temp + Baro			  SubType:BMP085 I2C   Data:0.0 C 1038.0 hPa	Name:dummy temp baro
+            Barometer:1038.0	Forecast:0	ForecastStr:Stable	Temp:0.0,
+    '''
+    def doDomoBaro(self):
+        device = self.domo.get_device("Temp + Humidity + Baro")
+        if device :
+            data = device["Barometer"]
+        else:
+            device = self.domo.get_device("Temp + Baro")
+            if device :
+                data = device["Barometer"]
+            else:
+                data = ""
+
+
+    '''
+    DomoRain  143 Type:Rain					  SubType:TFA		   Data:0             Name:dummy rain
+            Rain:0	RainRate:0,
+    '''
+    def doDomoRain(self):
+        device = self.domo.get_device("Rain")
+        if device :
+            data = device["Data"]
+            data = re.sub(' .*','',data)
+        else:
+            data = ""
+
+
+    '''
+    DomoTemp  019 Type:Temp + Humidity		  SubType:THGN122/123..Data:3.7 C 88 %    Name:Temp/Humid
+            DewPoint:1.90	Humidity:88	HumidityStatus:Normal	Temp:3.7,
+    DomoTemp  092 Type:Temp					  SubType:LaCrosse TX3 Data:66.2 C        Name:Internal Temperature
+            Temp:66.2,
+    DomoTemp  147 Type:Temp + Humidity + Baro SubType:THB1 - BTHR..Data:0.0 C 50 % 1010 hPa	Name:dummy temp hum baro
+            Barometer:1010	DewPoint:-9.20	Forecast:1	ForecastStr:Sunny	Humidity:50	HumidityStatus:Comfortable	Temp:0.0,
+    DomoTemp  148 Type:Temp + Baro			  SubType:BMP085 I2C   Data:0.0 C 1038.0 hPa Name:dummy temp baro
+            Barometer:1038.0	Forecast:0	ForecastStr:Stable	Temp:0.0,
+    DomoTemp  159 Type:Temp					  SubType:LaCrosse TX3 Data:0.0 C         Name:dummytemp
+            Temp:0.0,
+    '''
+    def doDomoTemp(self):
+        device = self.domo.get_device("Temp")
+        if device :
+            data = device["Temp"]
+        else:
+            device = self.domo.get_device("Temp + Humidity")
+            if device :
+                data = device["Temp"]
+            else:
+                device = self.domo.get_device("Temp + Humidity + Baro")
+                if device :
+                    data = device["Temp"]
+                else:
+                    data = ""
+
+
+    '''
+    DomoElec  006 Type:Usage				  SubType:Electric	   Data:345 Watt	  Name:Verbruik elektriciteit,
+    DomoElec  156 Type:General				  SubType:kWh		   Data:0.000 kWh	  Name:dummy Electric (Instant+Counter)
+            CounterToday:0.000 kWh	EnergyMeterMode:	Usage:0 Watt,
+    '''
+    def doDomoElec(self):
+        device = self.domo.get_device("Usage","Electric")
+        if device :
+            data = device["Data"]
+            data = re.sub(' .*','',data)
+        else:
+            device = self.domo.get_device("General","kWh")
+            if device :
+                data = device["CounterToday"]
+                data = re.sub(' .*','',data) # remove everyting after first space
+                data = re.sub('\.','',data)  # remove decimal point
+                data = re.sub('^0*','',data) # remove leading zeroes
+            else:
+                data = ""
+
+
+    '''
+    DomoWind  020 Type:Wind					  SubType:WTGR800	   Data:112.5;ESE;0.0;0.0;3.7;0	Name:Wind
+            Direction:112.5	DirectionStr:ESE	Gust:0.0	Speed:0.0,
+    DomoWind  157 Type:Wind					  SubType:TFA		   Data:0;N;0;0;0;0	  Name:dummy Wind+Temp+Chill
+            Chill:0.0	Direction:0.0	DirectionStr:N	Gust:0.0	Speed:0.0	Temp:0.0,
+    DomoWind  158 Type:Wind					  SubType:WTGR800	   Data:0;N;0;0;0;0	  Name:dummy Wind
+            Direction:0.0	DirectionStr:N	Gust:0.0	Speed:0.0,
+    '''
+    def doDomoWind(self):
+        device = self.domo.get_device("Wind")
+        if device :
+            data = device["Data"]
+            data = re.sub(' .*','',data)
+        else:
+            data = ""
+
+
+    
+    def doDomoUpdateSlots(self):
+        question = intentconfig.get_text(intentconfig.DomoText.AskUpdateSlotsConfirmation)
+        if self.rhasspy.rhasspy_confirm(question):
+            self.rhasspy.rhasspy_speak(
+                intentconfig.get_text(intentconfig.Text.Please_Wait))
+            domo_rhasspy = Domo_Rhasspy(self.domo, self.rhasspy)
+            confirmation = intentconfig.get_text(intentconfig.DomoText.SayUpdateSlotsConfirmation)
+            self.intentjson.set_speech(confirmation)
+            domo_rhasspy.create_slots_files()
+        else:
+            no_confirmation = intentconfig.get_text(intentconfig.DomoText.SayNoUpdateSlotsConfirmation)
+            self.intentjson.set_speech(no_confirmation)
 
 # End Of File
