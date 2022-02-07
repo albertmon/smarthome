@@ -53,9 +53,11 @@ class IntentJSON:
 
     def get_slot_intvalue(self,slot_name,default=0):
         if slot_name in self.jsonevent["slots"]:
+            value = self.jsonevent["slots"][slot_name]
             try:
-                return int(self.jsonevent["slots"][slot_name])
+                return int(value)
             except ValueError:
+                log.error(f"Cannot convert {value} to int")
                 return default
         return default
 
