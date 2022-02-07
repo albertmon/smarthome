@@ -124,7 +124,7 @@ class IntentDomo:
         log.debug(f"field_name={field_name},speech={speech},resultMatch={resultMatch}")
 
         # perform action
-        info = self.domo.get_info(idx,max_age=1800)
+        info = self.domo.get_info(idx, field_name=field_name, max_age=1800)
         log.debug(f"idx={idx},max_age={max_age},info={info}")
         if info == "":
             # No info received, return Error result 
