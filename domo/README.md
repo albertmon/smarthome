@@ -6,7 +6,8 @@ With these scripts you can automate the data reception and transfer
 1.  First install rtl_433 
 
 	Check the documentation for rtl_433  
-	You can start with https://www.sensorsiot.org/install-rtl_433-for-a-sdr-rtl-dongle-on-a-raspberry-pi/  
+	A simple way to install rtl_433 can be found in the wiki: https://github.com/albertmon/smarthome/wiki/SDR-install  
+	You can also read https://www.sensorsiot.org/install-rtl_433-for-a-sdr-rtl-dongle-on-a-raspberry-pi/  
 2.	Copy the files to a directory (when needed)  
 
 	There are 4 files (excluding this README.md):  
@@ -16,7 +17,7 @@ With these scripts you can automate the data reception and transfer
 	|**rtl_433.conf**|Configuration file for the rtl_433 program|  
 	|**rtl_to_domoticz.py**|Python script that will run the rtl_433 program.|
 	|**run_rtl_to_domoticz**|Shell script that will execute the Python code|
-	|**smarthome.conf**|Configuration file with settings for|  
+	|**smarthome.conf**|Configuration file with settings for:|  
 	||`rtl_config_file`: where is the rtl_433.conf file  |
 	||`domoticz-url`: to which server and port must the data be sent  |
 	||`domo_idx_temphum`: idx of domoticz device (type=Temp + Humidity)  |
