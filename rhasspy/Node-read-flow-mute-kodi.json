@@ -1,0 +1,237 @@
+[
+    {
+        "id": "b97e04b62ab087a5",
+        "type": "tab",
+        "label": "Pause Kodi while listening",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "eeb2d5267eb34818",
+        "type": "mqtt in",
+        "z": "b97e04b62ab087a5",
+        "name": "wakeword",
+        "topic": "hermes/dialogueManager/sessionStarted",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "6725439934c4526b",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "x": 100,
+        "y": 160,
+        "wires": [
+            [
+                "01a6f4bea8d16a65",
+                "206fdb3c35934a32"
+            ]
+        ],
+        "info": "Catch the wakeword Start Event\n\nThis starts a flow to mute kodi to be able to give the voice command"
+    },
+    {
+        "id": "01a6f4bea8d16a65",
+        "type": "debug",
+        "z": "b97e04b62ab087a5",
+        "name": "Sniffer",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 890,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "707fec9c64087974",
+        "type": "http request",
+        "z": "b97e04b62ab087a5",
+        "name": "send muted to kodi",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://kodihost:kodiport/jsonrpc",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 550,
+        "y": 200,
+        "wires": [
+            [
+                "8bd04efbad29e2d2",
+                "87211064035b27c4"
+            ]
+        ]
+    },
+    {
+        "id": "206fdb3c35934a32",
+        "type": "function",
+        "z": "b97e04b62ab087a5",
+        "name": "set mute ",
+        "func": "msg.payload = '{\"jsonrpc\": \"2.0\", \"method\": \"Application.SetMute\", \"params\": {\"mute\": true}, \"id\": 1}'\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 200,
+        "wires": [
+            [
+                "707fec9c64087974"
+            ]
+        ]
+    },
+    {
+        "id": "8bd04efbad29e2d2",
+        "type": "debug",
+        "z": "b97e04b62ab087a5",
+        "name": "http result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 900,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "ba542a097ec4e993",
+        "type": "http request",
+        "z": "b97e04b62ab087a5",
+        "name": "request getmuted",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://kodihost:kodiport/jsonrpc",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 550,
+        "y": 260,
+        "wires": [
+            [
+                "80715dfe43134033"
+            ]
+        ]
+    },
+    {
+        "id": "c30cc4bc27414cd0",
+        "type": "function",
+        "z": "b97e04b62ab087a5",
+        "name": "Set UnMuted",
+        "func": "msg.payload = '{\"jsonrpc\": \"2.0\", \"method\": \"Application.SetMute\", \"params\": {\"mute\": false}, \"id\": 1}'\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 260,
+        "wires": [
+            [
+                "ba542a097ec4e993"
+            ]
+        ]
+    },
+    {
+        "id": "80715dfe43134033",
+        "type": "debug",
+        "z": "b97e04b62ab087a5",
+        "name": "request result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 920,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "fbf67a3b24409bea",
+        "type": "mqtt in",
+        "z": "b97e04b62ab087a5",
+        "name": "wakeword end",
+        "topic": "hermes/dialogueManager/sessionEnded",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "6725439934c4526b",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "x": 110,
+        "y": 60,
+        "wires": [
+            [
+                "01a6f4bea8d16a65"
+            ]
+        ],
+        "info": "Not used\n\nThis node shows the time it takes receiving the wakeword end event."
+    },
+    {
+        "id": "87211064035b27c4",
+        "type": "delay",
+        "z": "b97e04b62ab087a5",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "8",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "x": 220,
+        "y": 260,
+        "wires": [
+            [
+                "c30cc4bc27414cd0"
+            ]
+        ]
+    },
+    {
+        "id": "6725439934c4526b",
+        "type": "mqtt-broker",
+        "name": "MQTT-Rhasspy",
+        "broker": "broker-ip",
+        "port": "1883",
+        "clientid": "pi",
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": "",
+        "credentials": {
+            "user": "",
+            "password": ""
+        }
+    }
+]
