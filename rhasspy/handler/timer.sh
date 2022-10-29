@@ -7,15 +7,15 @@ LOGFILE=$BASEDIR/handler/timer.log
 
 echo "`date` Set timer Sleeptime=$SLEEPTIME, soundfile = $SOUNDFILE, pwd=`pwd`" >> $LOGFILE
 
-DEVICE=`python3 <<EOF
-import json
-f = open("$BASEDIR/profile.json", "r")
-config = json.load(f)
-device = config["sounds"]["aplay"]["device"]
-print(device)
-EOF
-`
+eval set -- $(grep "command=rhasspy-speakers-cli-hermes" $BASEDIR/supervisord.conf)
 
-PLAY_COMMAND="aplay -q -t wav -D $DEVICE"
+while [ $# -gt 0 ] && [ "$PLAY_COMMAND" = "" ]
+do 
+	if [ "$1" = "--play-command" ]
+	then
+		PLAY_COMMAND="$2"
+	fi
+	shift
+done
 
 (sleep $SLEEPTIME ; $PLAY_COMMAND $SOUNDFILE) >> $LOGFILE 2>&1 &

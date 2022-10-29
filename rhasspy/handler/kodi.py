@@ -97,6 +97,11 @@ class Kodi:
                + '"playlistid":0, "item":{"albumid":'+str(albumid)+'}}}'
         self.do_post(data)
 
+    def add_stream_to_playlist(self, stream_url):
+        data = '{"jsonrpc":"2.0", "id":1,"method":"Playlist.Add","params":{'\
+               + '"playlistid":0, "item":{"file":"'+stream_url+'"}}}'
+        self.do_post(data)
+
     def add_song_to_playlist(self, songid):
         data = '{"jsonrpc":"2.0", "id":1,"method":"Playlist.Add","params":{'\
                + '"playlistid":0, "item":{"songid":'+str(songid)+'}}}'
@@ -166,6 +171,16 @@ class Kodi:
 
         return songs
 
+    def play_stream(self, stream_url):
+        log.debug(f"play_stream:stream_url:{stream_url}")
+        self.stop_play()
+        self.clear_playlist()
+        self.add_stream_to_playlist(stream_url)
+        self.start_play()
+        # data = '{"jsonrpc":"2.0", "id":1,"method":"Player.Open",'\
+            # + '"params":{"item" : {"file":"' + stream_url + '" }}}'
+        # self.do_post(data)
+
     def play_albums(self, albums):
         log.debug(f"play_albums:albums:{albums}")
         self.stop_play()
@@ -176,7 +191,7 @@ class Kodi:
         self.start_play()
 
     def play_songs(self, songs):
-        log.debug(f"play_songs:gotSongs:{songs}")
+        log.debug(f"play_songs:songs:{songs}")
         self.stop_play()
         self.clear_playlist()
         for song in songs:

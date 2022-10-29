@@ -133,6 +133,10 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
             no_confirmation = intentconfig.get_text(intentconfig.KodiText.SayNoPlayConfirmation)
             self.intentjson.set_speech(no_confirmation)
 
+    def play_stream(self):
+        url = self.intentjson.get_slot_value("url")
+        self.kodi.play_stream(url)
+
     # =================================================================================
 
     def doKodiSongs(self):
@@ -140,6 +144,9 @@ Speel [de|het] ($titles){title}   [van ($composers){composer}]
 
     def doKodiAlbums(self):
         self.play_albums()
+
+    def doKodiStream(self):
+        self.play_stream()
 
     def doKodiPauseResume(self):
         self.kodi.pause_resume()
